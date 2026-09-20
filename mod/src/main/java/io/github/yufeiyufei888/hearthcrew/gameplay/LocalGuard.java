@@ -7,6 +7,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Server-side, nearby-only protection of a known owner.
@@ -18,6 +21,7 @@ import net.minecraft.world.entity.monster.Enemy;
 public final class LocalGuard {
     public static final double OWNER_RANGE = 32.0D;
     private static final double OWNER_RANGE_SQUARED = OWNER_RANGE * OWNER_RANGE;
+    private static final Map<UUID, Float> OBSERVED_OWNER_HEALTH = new ConcurrentHashMap<>();
 
     private LocalGuard() {}
 
@@ -29,7 +33,12 @@ public final class LocalGuard {
         if (executor.stopped() || executor.paused()) return;
 
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(body.ownerId());
-        LivingEntity threat = validThreat(body, owner);
+        boolean healthDropped = false;
+        if (owner != null) {
+            Float prior = OBSERVED_OWNER_HEALTH.put(owner.getUUID(), owner.getHealth());
+            healthDropped = prior != null && owner.getHealth() + 0.001F < prior;
+        }
+        LivingEntity threat = validThreat(body, owner, healthDropped);
         // An owner hit is an immediate survival event even while the body is
         // mining or crafting.  Ordinary work is suspended by the arbiter;
         // health alone must not suppress the guard lease.
@@ -40,13 +49,13 @@ public final class LocalGuard {
         }
     }
 
-    private static LivingEntity validThreat(CompanionEntity body, ServerPlayer owner) {
+    private static LivingEntity validThreat(CompanionEntity body, ServerPlayer owner, boolean healthDropped) {
         if (owner == null || !owner.isAlive() || owner.isRemoved() || owner.level() != body.level() || owner.distanceToSqr(body) > OWNER_RANGE_SQUARED) return null;
         LivingEntity attacker = owner.getLastHurtByMob();
         // A direct server-side hit can leave the vanilla last-attacker slot
         // unset for one tick.  During the hurt animation, use the nearest
         // hostile mob in the same bounded radius as a conservative fallback.
-        if (attacker == null && owner.hurtTime > 0) {
+        if (attacker == null && (owner.hurtTime > 0 || healthDropped)) {
             attacker = owner.level().getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(OWNER_RANGE), mob -> mob instanceof Enemy && mob.isAlive())
                     .stream().min(java.util.Comparator.comparingDouble(owner::distanceToSqr)).orElse(null);
         }
