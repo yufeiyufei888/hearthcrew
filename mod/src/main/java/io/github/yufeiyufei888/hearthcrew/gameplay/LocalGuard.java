@@ -42,8 +42,15 @@ public final class LocalGuard {
 
     private static LivingEntity validThreat(CompanionEntity body, ServerPlayer owner) {
         if (owner == null || !owner.isAlive() || owner.isRemoved() || owner.level() != body.level() || owner.distanceToSqr(body) > OWNER_RANGE_SQUARED) return null;
-        if (owner.tickCount - owner.getLastHurtByMobTimestamp() > 100) return null;
         LivingEntity attacker = owner.getLastHurtByMob();
+        // A direct server-side hit can leave the vanilla last-attacker slot
+        // unset for one tick.  During the hurt animation, use the nearest
+        // hostile mob in the same bounded radius as a conservative fallback.
+        if (attacker == null && owner.hurtTime > 0) {
+            attacker = owner.level().getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(OWNER_RANGE), mob -> mob instanceof Enemy && mob.isAlive())
+                    .stream().min(java.util.Comparator.comparingDouble(owner::distanceToSqr)).orElse(null);
+        }
+        if (attacker == null || owner.tickCount - owner.getLastHurtByMobTimestamp() > 100 && owner.hurtTime <= 0) return null;
         if (!(attacker instanceof Mob) || !(attacker instanceof Enemy)
                 || attacker == body || attacker.isRemoved() || !attacker.isAlive()
                 || attacker.level() != body.level()

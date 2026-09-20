@@ -167,8 +167,11 @@ public final class CompanionP0GameTests {
         mobLoot.set(false, helper.getLevel().getServer());
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.inventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
-        helper.runAfterDelay(65, () -> body.hurt(body.damageSources().generic(), 1000.0F));
-        helper.runAfterDelay(20, () -> {
+        helper.runAfterDelay(65, () -> {
+            if (!body.hurt(body.damageSources().generic(), 1000.0F)) helper.fail("lethal damage was rejected after native grace period");
+            if (body.isAlive()) helper.fail("lethal damage did not kill the companion");
+        });
+        helper.runAfterDelay(100, () -> {
             keep.set(originalKeep, helper.getLevel().getServer());
             mobLoot.set(originalMobLoot, helper.getLevel().getServer());
         });
@@ -192,7 +195,7 @@ public final class CompanionP0GameTests {
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.inventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
         helper.runAfterDelay(65, () -> body.hurt(body.damageSources().generic(), 1000.0F));
-        helper.runAfterDelay(20, () -> {
+        helper.runAfterDelay(100, () -> {
             keep.set(originalKeep, helper.getLevel().getServer());
             mobLoot.set(originalMobLoot, helper.getLevel().getServer());
         });

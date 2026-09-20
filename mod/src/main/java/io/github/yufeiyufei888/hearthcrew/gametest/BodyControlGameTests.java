@@ -79,8 +79,15 @@ public final class BodyControlGameTests {
                 .thenWaitUntil(() -> {
                     if (!helper.getBlockState(target).isAir()) throw new GameTestAssertException("mine has not produced an air target yet");
                     ItemEntity drop = findDrop(helper, helper.absolutePos(target), Items.COBBLESTONE);
-                    if (drop == null) throw new GameTestAssertException("actual mining drop is not observable yet");
-                    if (body.distanceToSqr(drop) > 1.0) throw new GameTestAssertException("body has not reached the real mining drop yet");
+                    // A fast native player may already have picked up the
+                    // real drop before this observation tick.  Either the
+                    // live entity at the target or the confirmed inventory
+                    // increment is valid evidence; never require an artificial
+                    // pause to make the drop visible.
+                    if (drop == null && count(body, Items.COBBLESTONE) < 1)
+                        throw new GameTestAssertException("actual mining drop is not observable or accounted yet");
+                    if (drop != null && body.distanceToSqr(drop) > 1.0)
+                        throw new GameTestAssertException("body has not reached the real mining drop yet");
                 })
                 .thenExecute(() -> {
                     body.setFoodState(new FoodState(10, 0.0F, 0.0F));
