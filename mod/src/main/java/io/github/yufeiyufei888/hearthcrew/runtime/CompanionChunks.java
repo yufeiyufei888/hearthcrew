@@ -101,7 +101,7 @@ public final class CompanionChunks implements AutoCloseable {
         if (renew) lastRenewTick = tick;
     }
     public Map<String, Object> diagnostics() {
-        return Map.of("maxCompanions", MAX_COMPANIONS, "regionRadius", REGION_RADIUS,"bodyLoading","native_player_tickets","nativePlayers",server.getPlayerList().getPlayers().stream().filter(p->p instanceof CompanionEntity).count(),
+        return Map.of("maxCompanions", MAX_COMPANIONS, "regionRadius", REGION_RADIUS,"bodyLoading","native_player_and_bounded_tickets","nativePlayers",server.getPlayerList().getPlayers().stream().filter(p->p instanceof CompanionEntity).count(),
                 "registered", data.chunkAnchors().size(), "activeTickets", active.size(),
                 "unavailable", unavailable.stream().map(UUID::toString).sorted().toList(),
                 "recoveryInvalid", data.chunkRecoveryInvalid(), "closed", closed);

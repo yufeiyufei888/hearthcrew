@@ -30,7 +30,10 @@ public final class LocalGuard {
 
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(body.ownerId());
         LivingEntity threat = validThreat(body, owner);
-        if (threat != null && (!executor.hasOrdinaryWork() || owner.getHealth() <= 8)) {
+        // An owner hit is an immediate survival event even while the body is
+        // mining or crafting.  Ordinary work is suspended by the arbiter;
+        // health alone must not suppress the guard lease.
+        if (threat != null) {
             executor.ensureGuard(body.ownerId(), Integer.toUnsignedLong(owner.getId()), threat.getUUID(), owner.getLastHurtByMobTimestamp());
         } else if (executor.isGuarding()) {
             executor.releaseGuard("owner threat cleared or owner unavailable");

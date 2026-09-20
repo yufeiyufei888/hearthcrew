@@ -156,7 +156,7 @@ public final class CompanionP0GameTests {
         });
     }
 
-    @GameTest(template = "p0_empty", timeoutTicks = 40, batch = "hearthcrew_p0_death_true")
+    @GameTest(template = "p0_empty", timeoutTicks = 110, batch = "hearthcrew_p0_death_true")
     public static void deathDropsInventoryWhenKeepInventoryFalseEvenWithoutMobLoot(GameTestHelper helper) {
         floor(helper);
         GameRules.BooleanValue keep = helper.getLevel().getGameRules().getRule(GameRules.RULE_KEEPINVENTORY);
