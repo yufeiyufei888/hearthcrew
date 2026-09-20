@@ -2041,6 +2041,14 @@ public final class BodyExecutor {
                 // toward the verified portal block and let vanilla perform
                 // the transfer when the cooldown expires.
                 Vec3 entrance = Vec3.atBottomCenterOf(position);
+                // A newly submitted return order can inherit the cooldown
+                // from the previous transfer while standing beside the
+                // portal.  Once the target is physically close, clear only
+                // that native cooldown and let PortalProcessor perform the
+                // real transfer; never teleport or synthesize a transition.
+                if (body.position().distanceToSqr(entrance) <= 1.5 * 1.5) {
+                    body.setPortalCooldown(0);
+                }
                 body.getMoveControl().setWantedPosition(entrance.x, entrance.y, entrance.z, 1.0);
             }
             return;

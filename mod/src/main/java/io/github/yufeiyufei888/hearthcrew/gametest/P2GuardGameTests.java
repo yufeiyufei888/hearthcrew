@@ -60,7 +60,9 @@ public final class P2GuardGameTests {
         long[] damageTick = {-1L};
         helper.startSequence()
                 .thenExecute(() -> body.executor().submit(mineId, BodyOrder.mine(log), ActionPriority.MISSION))
-                .thenExecuteAfter(1, () -> {
+                // Allow vanilla ServerPlayer join protection to expire before
+                // exercising the real hostile damage path.
+                .thenExecuteAfter(65, () -> {
                     var mine = body.executor().arbiter().snapshot(ActionId.of(mineId)).orElse(null);
                     if (mine == null || mine.state().terminal()) {
                         throw new GameTestAssertException("MINE did not remain active before owner hit: "

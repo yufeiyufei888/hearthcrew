@@ -97,6 +97,15 @@ public final class CompanionEntity extends ServerPlayer {
     }
     @Override public void doTick(){if(ticking)super.doTick();}
     @Override public void die(DamageSource source){if(executor!=null)executor.interruptForDeath();haltInputs();super.die(source);}
+    /** End portals normally show credits by removing the player.  Companions
+     * have no client to show credits to; they must follow the native respawn
+     * transition and remain a registered body. */
+    @Override public void showEndCredits(){
+        if (level().dimension() == Level.END) {
+            var transition = findRespawnPositionAndUseSpawnBlock(false, net.minecraft.world.level.portal.DimensionTransition.DO_NOTHING);
+            changeDimension(transition);
+        } else super.showEndCredits();
+    }
     @Override public boolean isInvulnerableTo(DamageSource source){return isSpectator();}
     @Override public boolean isInvulnerable(){return isSpectator();}
     @Override public void restoreFrom(ServerPlayer old,boolean alive){

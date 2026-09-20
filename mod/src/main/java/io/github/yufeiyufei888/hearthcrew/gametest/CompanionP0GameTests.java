@@ -141,14 +141,14 @@ public final class CompanionP0GameTests {
         });
     }
 
-    @GameTest(template = "p0_empty", timeoutTicks = 40, batch = "hearthcrew_p0_death_false")
+    @GameTest(template = "p0_empty", timeoutTicks = 110, batch = "hearthcrew_p0_death_false")
     public static void survivalDamageUsesNormalLivingEntitySemantics(GameTestHelper helper) {
         floor(helper);
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         float before = body.getHealth();
-        if (!body.hurt(body.damageSources().generic(), 4.0F)) {
-            helper.fail("generic damage was rejected");
-        }
+        helper.runAfterDelay(65, () -> {
+            if (!body.hurt(body.damageSources().generic(), 4.0F)) helper.fail("generic damage was rejected");
+        });
         helper.succeedWhen(() -> {
             if (!(body.getHealth() < before && body.isAlive())) {
                 throw new GameTestAssertException("survival damage did not reduce live body health");
@@ -167,7 +167,7 @@ public final class CompanionP0GameTests {
         mobLoot.set(false, helper.getLevel().getServer());
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.inventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
-        body.hurt(body.damageSources().generic(), 1000.0F);
+        helper.runAfterDelay(65, () -> body.hurt(body.damageSources().generic(), 1000.0F));
         helper.runAfterDelay(20, () -> {
             keep.set(originalKeep, helper.getLevel().getServer());
             mobLoot.set(originalMobLoot, helper.getLevel().getServer());
@@ -180,7 +180,7 @@ public final class CompanionP0GameTests {
         });
     }
 
-    @GameTest(template = "p0_empty", timeoutTicks = 40, batch = "hearthcrew_p0_body")
+    @GameTest(template = "p0_empty", timeoutTicks = 110, batch = "hearthcrew_p0_body")
     public static void deathKeepsInventoryWhenKeepInventoryTrue(GameTestHelper helper) {
         floor(helper);
         GameRules.BooleanValue keep = helper.getLevel().getGameRules().getRule(GameRules.RULE_KEEPINVENTORY);
@@ -191,7 +191,7 @@ public final class CompanionP0GameTests {
         mobLoot.set(false, helper.getLevel().getServer());
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.inventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
-        body.hurt(body.damageSources().generic(), 1000.0F);
+        helper.runAfterDelay(65, () -> body.hurt(body.damageSources().generic(), 1000.0F));
         helper.runAfterDelay(20, () -> {
             keep.set(originalKeep, helper.getLevel().getServer());
             mobLoot.set(originalMobLoot, helper.getLevel().getServer());
@@ -309,7 +309,7 @@ public final class CompanionP0GameTests {
                     if (!body.isSleeping()) throw new GameTestAssertException("sleep action did not put body into sleeping state");
                     if (!helper.getBlockState(head).getValue(BedBlock.OCCUPIED)) throw new GameTestAssertException("sleep action did not occupy the bed");
                 })
-                .thenExecuteAfter(1, () -> {
+                .thenExecuteAfter(65, () -> {
                     if (!body.hurt(body.damageSources().generic(), 1000.0F)) throw new GameTestAssertException("sleeping body rejected lethal damage");
                 })
                 .thenWaitUntil(() -> {
@@ -323,7 +323,7 @@ public final class CompanionP0GameTests {
                 .thenSucceed();
     }
 
-    @GameTest(template = "p0_empty", timeoutTicks = 40, batch = "hearthcrew_p0_damage")
+    @GameTest(template = "p0_empty", timeoutTicks = 110, batch = "hearthcrew_p0_damage")
     public static void armorDamageConsumesDurabilityThroughLivingEntityPath(GameTestHelper helper) {
         floor(helper);
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
@@ -334,7 +334,7 @@ public final class CompanionP0GameTests {
         attacker.setNoAi(true);
         if (!helper.getLevel().addFreshEntity(attacker)) helper.fail("could not add armor damage source");
         float[] healthBefore = {body.getHealth()};
-        helper.runAfterDelay(2, () -> {
+        helper.runAfterDelay(65, () -> {
             if (body.getArmorValue() <= 0) throw new GameTestAssertException("equipped chestplate did not apply armor attribute");
             healthBefore[0] = body.getHealth();
             if (!body.hurt(body.damageSources().mobAttack(attacker), 8.0F)) throw new GameTestAssertException("normal mob damage was rejected");

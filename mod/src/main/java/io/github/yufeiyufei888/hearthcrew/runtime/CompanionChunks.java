@@ -59,7 +59,11 @@ public final class CompanionChunks implements AutoCloseable {
         Anchor next = anchor(body);
         if (!data.rememberChunkAnchor(body.companionId(), next)) return false;
         unavailable.remove(body.companionId()); missingReadyTicks.remove(body.companionId());
-        removeTicket(body.companionId()); // Native player tickets now own body loading.
+        // Keep one bounded server ticket in addition to the native player
+        // tracking.  Local companions have no real client connection, so a
+        // native player ticket alone can unload the body when it crosses a
+        // chunk boundary or starts in a remote fixture.
+        updateTicket(body.companionId(), next, true);
         return true;
     }
     public void tick() {
@@ -79,7 +83,9 @@ public final class CompanionChunks implements AutoCloseable {
             CompanionEntity body = live.get(id);
             if (body != null) {
                 next = anchor(body); data.rememberChunkAnchor(id, next);
-                unavailable.remove(id); missingReadyTicks.remove(id);removeTicket(id);continue;
+                unavailable.remove(id); missingReadyTicks.remove(id);
+                updateTicket(id, next, renew);
+                continue;
             } else if (unavailable.contains(id)) continue;
             updateTicket(id, next, renew);
             ServerLevel level = level(next);
