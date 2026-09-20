@@ -3,6 +3,7 @@ package io.github.yufeiyufei888.hearthcrew.runtime;
 import io.github.yufeiyufei888.hearthcrew.entity.CompanionEntity;
 import io.github.yufeiyufei888.hearthcrew.backend.BackendWorld;
 import io.github.yufeiyufei888.hearthcrew.gameplay.CompanionTargeting;
+import io.github.yufeiyufei888.hearthcrew.gameplay.LocalGuard;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.*;
@@ -79,6 +80,11 @@ public final class WorldEvents {
     }
     public static void serverTick(ServerTickEvent.Post event) {
         if(BackendWorld.enabled())BackendWorld.tick(event.getServer());
+        // Player-backed companions may not receive a native entity tick while
+        // their local connection is being attached/replaced.  Keep the
+        // owner-threat safety check on the server tick as a recovery path so a
+        // real owner hit cannot be lost during that handoff.
+        for (CompanionEntity body : CrewWorldData.liveCompanions(event.getServer())) LocalGuard.tick(body);
         for (var removal : removals) if (!removal.level().getBlockState(removal.pos()).equals(removal.before()))
             CrewWorldData.get(event.getServer()).confirmPlayerRemoval(removal.level(),removal.pos(),removal.owner());
         removals.clear();
