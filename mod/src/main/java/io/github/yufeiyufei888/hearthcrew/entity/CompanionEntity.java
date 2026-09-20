@@ -114,7 +114,9 @@ public final class CompanionEntity extends ServerPlayer {
         if(executor!=null)tag.put("CrewActionLedger",executor.saveLedger());else if(savedLedger!=null)tag.put("CrewActionLedger",savedLedger.copy());
     }
     @Override public void readAdditionalSaveData(CompoundTag tag){
-        super.readAdditionalSaveData(tag);if(tag.hasUUID("CrewOwner"))ownerId=tag.getUUID("CrewOwner");
+        super.readAdditionalSaveData(tag);
+        if(tag.hasUUID("CrewIdentity"))setUUID(tag.getUUID("CrewIdentity"));
+        if(tag.hasUUID("CrewOwner"))ownerId=tag.getUUID("CrewOwner");
         skin=Math.floorMod(tag.getInt("CrewSkin"),3);bodyGeneration=Math.max(1,tag.getLong("CrewBodyGeneration"))+1;
         respawnEnabled=!tag.contains("CrewRespawnEnabled")||tag.getBoolean("CrewRespawnEnabled");
         savedLedger=tag.contains("CrewActionLedger")?tag.getCompound("CrewActionLedger").copy():null;executor=null;

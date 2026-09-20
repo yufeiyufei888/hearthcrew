@@ -692,8 +692,8 @@ public final class BodyExecutor {
         if (recoveryInvalid) throw new IllegalStateException("saved action ledger unreadable; recovery required");
         stopped = false; paused = false;
     }
-    /** Owner reassignment atomically retires active and suspended work. */
-    public void retask() { requireServerThread(); cancelBelow(ActionPriority.SAFETY, "owner reassigned companion"); resume(); }
+    /** Owner reassignment atomically retires all active and suspended work. */
+    public void retask() { requireServerThread(); cancelThrough(ActionPriority.SAFETY, "owner reassigned companion"); resume(); }
 
     /** Retire ordinary work without disabling local survival and owner defence. */
     public void standby() { cancelBelow(ActionPriority.GUARD, "owner standby"); }
@@ -712,6 +712,20 @@ public final class BodyExecutor {
         for (var iterator = suspended.iterator(); iterator.hasNext();) {
             ActionId id = iterator.next(); var submission = submissions.get(id);
             if (submission != null && threshold.outranks(submission.priority())) {
+                arbiter.cancel(id, reason); iterator.remove(); suspendedMiningDrops.remove(id); suspendedGatherCollected.remove(id);
+            }
+        }
+        if (cancelledActive) stopMotion();
+    }
+
+    /** Cancel work at or below a boundary; used only for an explicit owner retask. */
+    private void cancelThrough(ActionPriority threshold, String reason) {
+        requireServerThread();
+        boolean cancelledActive = arbiter.activeSnapshot().filter(s -> threshold.outranks(s.priority()) || s.priority() == threshold)
+                .map(s -> { arbiter.cancel(s.id(), reason); return true; }).orElse(false);
+        for (var iterator = suspended.iterator(); iterator.hasNext();) {
+            ActionId id = iterator.next(); var submission = submissions.get(id);
+            if (submission != null && (threshold.outranks(submission.priority()) || submission.priority() == threshold)) {
                 arbiter.cancel(id, reason); iterator.remove(); suspendedMiningDrops.remove(id); suspendedGatherCollected.remove(id);
             }
         }

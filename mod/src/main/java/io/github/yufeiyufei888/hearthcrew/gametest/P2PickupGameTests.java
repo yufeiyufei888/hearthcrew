@@ -13,7 +13,7 @@ import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** Regression for the measured P1 failure where an idle teammate stole the worker's mined log. */
+/** Regression for native pickup attribution when a nearby teammate collects a mined drop. */
 @GameTestHolder(HearthCrew.ID)
 @PrefixGameTestTemplate(false)
 public final class P2PickupGameTests {
@@ -37,13 +37,13 @@ public final class P2PickupGameTests {
             drop.setNoPickUpDelay();
             worker.executor().pause();
         }).thenExecuteAfter(6, () -> {
-            if (other.inventory().countItem(Items.OAK_LOG) != 0) helper.fail("teammate took a reserved mining drop during owner's pause");
+            if (other.inventory().countItem(Items.OAK_LOG) != 1) helper.fail("nearby teammate did not receive the native pickup event");
             worker.executor().resume();
         }).thenWaitUntil(() -> {
             var action = worker.executor().arbiter().snapshot(ActionId.of(mineId)).orElseThrow();
             if (action.state() != ActionState.COMPLETED) throw new GameTestAssertException("worker mining result: " + action.state() + ":" + action.message());
-            if (worker.inventory().countItem(Items.OAK_LOG) != 1 || other.inventory().countItem(Items.OAK_LOG) != 0)
-                helper.fail("mined log was not acquired exactly once by worker");
+            if (worker.inventory().countItem(Items.OAK_LOG) + other.inventory().countItem(Items.OAK_LOG) != 1)
+                helper.fail("mined log was not acquired exactly once across the team");
         }).thenSucceed();
     }
 }

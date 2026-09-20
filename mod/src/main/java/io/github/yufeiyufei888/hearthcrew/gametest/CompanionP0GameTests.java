@@ -557,7 +557,8 @@ public final class CompanionP0GameTests {
                     foodRef[0] = origin.foodState();
                     enterIdRef[0] = "p0-nether-enter-" + identityRef[0];
                     returnIdRef[0] = "p0-nether-return-" + identityRef[0];
-                    if (!overworld.addFreshEntity(origin)) throw new GameTestAssertException("could not add Nether portal companion");
+                    if (overworld.getServer().getPlayerList().getPlayer(origin.getUUID()) != origin)
+                        throw new GameTestAssertException("portal companion was not registered");
                     origin.executor().submit(enterIdRef[0],
                             new BodyOrder(BodyOrder.Kind.PORTAL, sourcePortal, null, 0), ActionPriority.OWNER);
                 })
@@ -650,7 +651,8 @@ public final class CompanionP0GameTests {
         UUID identity = origin.companionId();
         int inventoryCount = count(origin, Items.IRON_INGOT);
         FoodState food = origin.foodState();
-        if (!overworld.addFreshEntity(origin)) helper.fail("could not add End portal companion");
+        if (overworld.getServer().getPlayerList().getPlayer(origin.getUUID()) != origin)
+            helper.fail("End portal companion was not registered");
 
         String enterId = "p0-end-enter-" + identity;
         String returnId = "p0-end-return-" + identity;

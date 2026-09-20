@@ -48,6 +48,7 @@ public final class P2GuardGameTests {
         ServerPlayer owner = owner(helper, new BlockPos(1, 1, 3));
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.setOwner(owner.getUUID());
+        body.inventory().setItem(0, new ItemStack(Items.WOODEN_AXE, 1));
         BlockPos log = helper.absolutePos(new BlockPos(2, 1, 1));
         helper.setBlock(new BlockPos(2, 1, 1), Blocks.OAK_LOG);
         String mineId = "p2-guard-resume-mine-" + body.getUUID();
@@ -141,13 +142,12 @@ public final class P2GuardGameTests {
         ServerPlayer owner = owner(helper, new BlockPos(2, 1, 1));
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.setOwner(owner.getUUID());
-        CompanionEntity friendly = body(helper, new BlockPos(1, 1, 3));
-        friendly.setOwner(owner.getUUID());
+        var friendly = helper.spawn(EntityType.COW, new BlockPos(1, 1, 3));
         helper.setNight();
         helper.runAfterDelay(90, () -> retire(owner));
         helper.startSequence()
                 .thenExecuteAfter(65, () -> {
-                    if (!owner.hurt(helper.getLevel().damageSources().mobAttack(friendly), 1.0F)) {
+                    if (!friendly.doHurtTarget(owner)) {
                         helper.fail("friendly damage source did not reach owner");
                     }
                 })

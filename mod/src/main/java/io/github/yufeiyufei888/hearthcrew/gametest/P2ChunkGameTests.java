@@ -36,8 +36,10 @@ public final class P2ChunkGameTests {
             }
             if (chunks.track(bodies[3])) throw new GameTestAssertException("fourth companion exceeded the ticket capacity");
             var diagnostics = chunks.diagnostics();
-            if (!Integer.valueOf(3).equals(diagnostics.get("registered")) || !Integer.valueOf(3).equals(diagnostics.get("activeTickets"))) {
-                throw new GameTestAssertException("ticket cap diagnostics did not show 3/3: " + diagnostics);
+            if (!Integer.valueOf(3).equals(diagnostics.get("registered"))
+                    || !Integer.valueOf(0).equals(diagnostics.get("activeTickets"))
+                    || !"native_player_tickets".equals(diagnostics.get("bodyLoading"))) {
+                throw new GameTestAssertException("native player ticket diagnostics were inconsistent: " + diagnostics);
             }
         } finally {
             chunks.close();
@@ -87,7 +89,9 @@ public final class P2ChunkGameTests {
             int newChunkX = data.chunkAnchors().get(body.companionId()).chunkX();
             if (oldChunkX == newChunkX) helper.fail("companion anchor did not follow its new chunk");
             var diagnostics = chunks.diagnostics();
-            if (!Integer.valueOf(1).equals(diagnostics.get("activeTickets"))) helper.fail("moving anchor did not retain exactly one active ticket");
+            if (!Integer.valueOf(0).equals(diagnostics.get("activeTickets"))
+                    || !"native_player_tickets".equals(diagnostics.get("bodyLoading")))
+                helper.fail("moving anchor did not retain native player loading state");
         } finally {
             chunks.close();
             body.discard();
