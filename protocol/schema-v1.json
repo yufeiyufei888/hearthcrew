@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yufeiyufei888/hearthcrew/blob/main/protocol/schema-v1.json",
+  "title": "HearthCrew wire protocol v1",
+  "description": "Loopback Mod to bridge envelopes. The four byte length prefix is a transport rule and is not represented here.",
+  "type": "object",
+  "required": ["protocol", "kind"],
+  "properties": {
+    "protocol": { "const": "hearthcrew.v1" },
+    "kind": { "enum": ["handshake", "handshake_ack", "request", "response", "event", "ack"] },
+    "worldId": { "type": "string", "minLength": 1 },
+    "sessionEpoch": { "type": "integer", "minimum": 0 },
+    "requestId": { "type": "string", "minLength": 1 },
+    "eventId": { "type": "string", "minLength": 1 },
+    "token": { "type": "string", "minLength": 1 },
+    "client": { "enum": ["mod", "bridge"] },
+    "capabilities": { "$ref": "#/$defs/capabilities" },
+    "serverCapabilities": { "$ref": "#/$defs/capabilities" },
+    "op": { "enum": ["status", "observe", "intent.bind", "action.submit", "recovery.standby", "action.reconcile_history", "action.cancel", "control", "reconcile", "team.status", "team.propose", "team.execute", "ui.claim", "ui.update", "chat.publish"] },
+    "event": { "type": "string", "minLength": 1 },
+    "accepted": { "type": "boolean" },
+    "ok": { "type": "boolean" },
+    "body": {},
+    "error": { "$ref": "#/$defs/error" }
+  },
+  "$defs": {
+    "capabilities": {
+      "type": "object",
+      "required": ["events", "acknowledgements", "reconciliation", "maxFrameBytes"],
+      "properties": {
+        "events": { "type": "boolean" },
+        "acknowledgements": { "type": "boolean" },
+        "reconciliation": { "type": "boolean" },
+        "maxFrameBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      },
+      "additionalProperties": { "type": ["boolean", "number"] }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "details": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}

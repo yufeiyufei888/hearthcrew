@@ -1,0 +1,34 @@
+name: Verify development build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, resolved 2026-09-05
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Java build and deterministic game tests
+        shell: pwsh
+        run: .\gradlew.bat build :mod:runGameTestServer --no-daemon --console=plain
+      - name: Controller contracts
+        working-directory: bridge
+        shell: pwsh
+        run: |
+          npm.cmd ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm.cmd test
+      - name: Explain release separation
+        shell: pwsh
+        run: Write-Output 'CI only verifies build and automated contracts. Campaign, real client, compatibility and soak are separate required gates. This workflow never publishes.'

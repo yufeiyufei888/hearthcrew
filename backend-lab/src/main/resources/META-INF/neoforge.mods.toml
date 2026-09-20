@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="Apache-2.0"
+[[mixins]]
+config="hearthcrew-backend.mixins.json"
+[[mods]]
+modId="hearthcrew_backend_lab"
+version="0.3.2-lab"
+displayName="HearthCrew isolated backend laboratory - not a gameplay release"
+[[dependencies.hearthcrew_backend_lab]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.249,)"
+ordering="NONE"
+side="SERVER"
+[[dependencies.hearthcrew_backend_lab]]
+modId="numen"
+type="required"
+versionRange="[0.1.3-dev]"
+ordering="AFTER"
+side="SERVER"

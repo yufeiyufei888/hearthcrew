@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="Apache-2.0"
+
+[[mods]]
+modId="hearthcrew"
+version="${version}"
+displayName="HearthCrew 炉火伙伴"
+authors="Yufei"
+description='''三个拥有独立目标与记忆的生存伙伴。开发版本；未通过通关发布验收。'''
+
+[[dependencies.hearthcrew]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.249]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.hearthcrew]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="BOTH"
+
+[[mixins]]
+config="hearthcrew.mixins.json"

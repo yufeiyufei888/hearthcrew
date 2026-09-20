@@ -1,0 +1,10 @@
+{
+  "entity.hearthcrew.companion": "炉火伙伴",
+  "key.hearthcrew.open": "打开炉火伙伴",
+  "hearthcrew.command.created": "已加入炉火伙伴：%s",
+  "hearthcrew.command.no_companion": "附近没有属于你的炉火伙伴",
+  "hearthcrew.command.accepted": "已接受：%s",
+  "hearthcrew.command.stopped": "已停止伙伴的主动动作",
+  "hearthcrew.command.status": "%s｜生命 %s｜饥饿 %s｜动作 %s",
+  "hearthcrew.command.development": "HearthCrew 开发版：通关与稳定性尚未验收"
+}

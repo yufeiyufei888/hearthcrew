@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+version = '0.3.2-experimental'
+evaluationDependsOn(':kernel')
+def upstream = rootProject.file('.runtime/backend-v03/numen-947f0064')
+def bundle = providers.gradleProperty('backendDependencyBundle').orNull
+dependencies {
+    api project(':backend-api')
+    api project(':kernel')
+    if(bundle!=null){
+        def manifestFile=rootProject.file("${bundle}/manifest.json")
+        def manifest=new groovy.json.JsonSlurper().parse(manifestFile)
+        if(manifest.commit!='947f0064f3374adc0341e61687215ae32ea9765a'||!manifest.unofficial)throw new GradleException('Unverified backend dependency manifest')
+        ['core','api'].each { part ->
+            def record=manifest.outputs[part]
+            def artifact=new File(manifestFile.parentFile,record.file)
+            def actual=java.security.MessageDigest.getInstance('SHA-256').digest(artifact.bytes).encodeHex().toString()
+            if(actual!=record.sha256)throw new GradleException('Backend dependency hash mismatch')
+            api files(artifact)
+        }
+    }else{
+        api fileTree(dir: new File(upstream, 'core/neoforge/build/libs'), include: '*.jar', exclude: ['*-sources.jar', '*-javadoc.jar'])
+        api fileTree(dir: new File(upstream, 'api/neoforge/build/libs'), include: '*.jar', exclude: ['*-sources.jar', '*-javadoc.jar', '*-api.jar'])
+    }
+}
+neoForge { version = '21.1.249' }
+tasks.named('jar') { archiveBaseName = 'hearthcrew-backend-numen-experimental-NOT-FOR-INSTALL' }

@@ -1,0 +1,10 @@
+{
+  "entity.hearthcrew.companion": "Hearth companion",
+  "key.hearthcrew.open": "Open HearthCrew",
+  "hearthcrew.command.created": "Companion joined: %s",
+  "hearthcrew.command.no_companion": "No nearby companion belongs to you",
+  "hearthcrew.command.accepted": "Accepted: %s",
+  "hearthcrew.command.stopped": "Companion actions stopped",
+  "hearthcrew.command.status": "%s | Health %s | Food %s | Action %s",
+  "hearthcrew.command.development": "HearthCrew development build: campaign and soak not validated"
+}

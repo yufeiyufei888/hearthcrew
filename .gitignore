@@ -1,0 +1,17 @@
+.gradle/
+**/build/
+**/node_modules/
+**/dist/
+**/run/
+**/runs/
+.runtime/
+.local/
+.artifacts/
+.env
+.env.*
+*.log
+*.pid
+auth.json
+*.token
+evidence/raw/
+!**/.env.example

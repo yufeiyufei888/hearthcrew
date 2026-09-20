@@ -1,0 +1,21 @@
+{
+  "name": "hearthcrew-bridge",
+  "version": "0.3.2",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/bridge/test/framing.test.js dist/bridge/test/protocol.test.js dist/bridge/test/mod-connection.test.js dist/bridge/test/backend-negotiation.test.js dist/bridge/test/backend-capabilities.test.js dist/bridge/test/app-server-client.test.js dist/bridge/test/game-model-catalog.test.js dist/bridge/test/desktop-mcp.test.js dist/bridge/test/crew-controller.test.js dist/bridge/test/crew-journal.test.js dist/bridge/test/behavior-policy.test.js dist/bridge/test/work-stages.test.js dist/bridge/test/action-parameters.test.js dist/bridge/test/scenario-receipts.test.js dist/bridge/test/ui-view.test.js dist/bridge/test/standalone-runtime.test.js dist/bridge/test/planning-context.test.js dist/bridge/test/work-board.test.js",
+    "doctor": "npm run build && node dist/bridge/src/cli.js doctor",
+    "login": "npm run build && node dist/bridge/src/cli.js login",
+    "server": "npm run build && node dist/bridge/src/cli.js server",
+    "interop-probe": "npm run build && node dist/bridge/src/interop-probe.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}

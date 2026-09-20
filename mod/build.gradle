@@ -1,0 +1,121 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+base.archivesName = 'hearthcrew-neoforge-1.21.1'
+evaluationDependsOn(':backend-api')
+def numenRelease=providers.gradleProperty('numenRelease').isPresent()
+if(numenRelease){
+    if(!providers.gradleProperty('backendDependencyBundle').isPresent())throw new GradleException('A verified dependency bundle is required for the Numen release')
+    evaluationDependsOn(':backend-numen')
+}
+neoForge {
+    version = '21.1.249'
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run/client')
+        }
+        playtest {
+            client()
+            gameDirectory = project.file('run/client')
+            if (project.hasProperty('hearthcrewPairing')) systemProperty 'hearthcrew.pairing', project.property('hearthcrewPairing')
+            if (project.hasProperty('hearthcrewPlaytestSave')) {
+                def saveName = project.property('hearthcrewPlaytestSave').toString()
+                if (!(saveName ==~ /[A-Za-z0-9_-]{1,96}/)) throw new GradleException('Invalid isolated playtest save name')
+                programArguments.addAll '--quickPlaySingleplayer', saveName
+            }
+            programArguments.addAll '--width', '1280', '--height', '800'
+        }
+        visualTest {
+            client()
+            gameDirectory = project.file('run/client')
+            systemProperty 'hearthcrew.visualTest', 'true'
+            programArguments.addAll '--quickPlaySingleplayer', 'P0Visual', '--width', '1280', '--height', '800'
+        }
+        persistenceTest {
+            client()
+            gameDirectory = project.file('run/client')
+            systemProperty 'hearthcrew.persistenceTest', 'true'
+            programArguments.addAll '--quickPlaySingleplayer', 'P0Visual', '--width', '1280', '--height', '800'
+        }
+        modelTest {
+            client()
+            gameDirectory = project.file('run/client')
+            systemProperty 'hearthcrew.modelTest', 'true'
+            systemProperty 'hearthcrew.fixtureDirectory', project.file('run/client').absolutePath
+            if (project.hasProperty('hearthcrewModelRunId')) systemProperty 'hearthcrew.modelRunId', project.property('hearthcrewModelRunId')
+            if (project.hasProperty('hearthcrewPairing')) systemProperty 'hearthcrew.pairing', project.property('hearthcrewPairing')
+            programArguments.addAll '--width', '1280', '--height', '800'
+        }
+        teamTest {
+            client()
+            gameDirectory = project.file('run/client')
+            systemProperty 'hearthcrew.teamTest', 'true'
+            if (project.hasProperty('hearthcrewTeamBuild') && project.property('hearthcrewTeamBuild').toString().toBoolean()) systemProperty 'hearthcrew.teamBuild', 'true'
+            if (project.hasProperty('hearthcrewTeamGather') && project.property('hearthcrewTeamGather').toString().toBoolean()) systemProperty 'hearthcrew.teamGather', 'true'
+            systemProperty 'hearthcrew.fixtureDirectory', project.file('run/client').absolutePath
+            if (project.hasProperty('hearthcrewTeamRunId')) systemProperty 'hearthcrew.teamRunId', project.property('hearthcrewTeamRunId')
+            if (project.hasProperty('hearthcrewPairing')) systemProperty 'hearthcrew.pairing', project.property('hearthcrewPairing')
+            programArguments.addAll '--width', '1280', '--height', '800'
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            gameDirectory = project.file('run/server')
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            gameDirectory = project.file('run/gametest')
+            if (project.hasProperty('hearthcrewGameTestRunId')) {
+                def testRunId = project.property('hearthcrewGameTestRunId').toString()
+                if (!(testRunId ==~ /[A-Za-z0-9-]{1,64}/)) throw new GradleException('Invalid isolated GameTest run id')
+                def testDirectory = project.file("run/gametest-${testRunId}")
+                if (testDirectory.exists()) throw new GradleException('GameTest run directory already exists; use a fresh id')
+                gameDirectory = testDirectory
+            }
+            // Interop runs are isolated from the ordinary P0/P1 suite. The
+            // namespace is selected only through the explicit test property.
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.hasProperty('hearthcrewPreparation') ? 'hearthcrewpreparation' : project.hasProperty('hearthcrewContinuous') ? 'hearthcrewcontinuous' : project.hasProperty('hearthcrewJoin') ? 'hearthcrewjoin' : project.hasProperty('hearthcrewNative') ? 'hearthcrewnative' : project.hasProperty('hearthcrewInterop') ? 'hearthcrewinterop' : 'hearthcrew'
+            if (project.hasProperty('hearthcrewPairing')) systemProperty 'hearthcrew.pairing', project.property('hearthcrewPairing')
+            systemProperty 'hearthcrew.isolatedGameTest', 'true'
+            if (project.hasProperty('hearthcrewInterop')) systemProperty 'hearthcrew.interopTest', 'true'
+            if (project.hasProperty('hearthcrewInteropRunId')) systemProperty 'hearthcrew.interopRunId', project.property('hearthcrewInteropRunId')
+        }
+    }
+    mods {
+        hearthcrew {
+            sourceSet sourceSets.main
+            sourceSet project(':kernel').sourceSets.main
+            sourceSet project(':backend-api').sourceSets.main
+        }
+    }
+}
+dependencies {
+    implementation project(':kernel')
+    implementation project(':backend-api')
+    if(numenRelease)implementation project(':backend-numen')
+}
+tasks.named('jar', Jar) {
+    exclude 'data/hearthcrew/structure/gather_empty.nbt', 'data/hearthcrewnative/**', 'data/hearthcrewjoin/**', 'data/hearthcrewcontinuous/**', 'data/hearthcrewpreparation/**'
+    exclude '**/gametest/**', '**/DevelopmentVisualFixture*', '**/DevelopmentModelFixture*', '**/DevelopmentModelBootstrap*', '**/DevelopmentTeamFixture*', '**/DevelopmentTeamBootstrap*', 'data/hearthcrew/structure/p0_empty.nbt', 'data/hearthcrewinterop/structure/p0_empty.nbt'
+    from project(':kernel').sourceSets.main.output
+    from project(':backend-api').sourceSets.main.output
+    if(numenRelease)from project(':backend-numen').sourceSets.main.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(rootProject.file('LICENSE'))
+}
+tasks.named('processResources', ProcessResources) {
+    inputs.property('version', project.version)
+    inputs.property('numenRelease',numenRelease)
+    from(rootProject.file('protocol/action-capabilities.json')) { into 'hearthcrew' }
+    filesMatching('META-INF/neoforge.mods.toml') { expand(version: project.version) }
+    doLast {
+        def marker=new File(destinationDir,'hearthcrew/numen-release.marker')
+        if(numenRelease){
+            marker.parentFile.mkdirs();marker.text='numen\n'
+            def descriptor=new File(destinationDir,'META-INF/neoforge.mods.toml')
+            descriptor.append('\n[[dependencies.hearthcrew]]\nmodId="numen"\ntype="required"\nversionRange="[0.1.3-dev]"\nordering="AFTER"\nside="BOTH"\n\n[[mixins]]\nconfig="hearthcrew-backend.mixins.json"\n','UTF-8')
+        }else if(marker.exists())marker.delete()
+    }
+}

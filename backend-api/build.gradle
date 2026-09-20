@@ -1,0 +1,7 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+dependencies { api project(':kernel') }
+neoForge { version = '21.1.249' }
+tasks.named('jar') { archiveBaseName = 'hearthcrew-backend-api' }

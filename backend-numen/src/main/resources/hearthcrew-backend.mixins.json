@@ -1,0 +1,31 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "plugin": "io.github.yufeiyufei888.hearthcrew.backend.numen.mixin.BackendMixinSelector",
+  "package": "io.github.yufeiyufei888.hearthcrew.backend.numen.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "NumenMinePolicyMixin",
+    "DropMergeProofMixin",
+    "OwnedDeathMixin",
+    "OwnedRespawnMixin",
+    "OwnedEventsMixin",
+    "OwnedPathPolicyMixin",
+    "OwnedAStarBudgetMixin",
+    "OwnedNavigationResultMixin",
+    "OwnedDispatchMixin",
+    "OwnedPersistenceMixin",
+    "OwnedToolIngressMixin",
+    "OwnedRelocationMixin",
+    "OwnedBrainMixin",
+    "OwnedOutboundMixin",
+    "OwnedCraftingSelectionMixin",
+    "OwnedToolChoiceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "client": [
+    "OwnedMcpNoticeMixin"
+  ]
+}

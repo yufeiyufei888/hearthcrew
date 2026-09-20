@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/Dwinovo/minecraft-numen",
+  "commit": "947f0064f3374adc0341e61687215ae32ea9765a",
+  "sourceVersion": "0.1.3-dev",
+  "minecraft": "1.21.1",
+  "neoforgeBuildOverride": "21.1.249",
+  "sourceArchiveSha256": "A1629F3A497AB0C4AC5C36F95EF17C9D891A79860DE9C14FD5EA95954E075183",
+  "archiveMethod": "git archive --format=zip <commit>; includes committed files only",
+  "coreLicense": "LGPL-3.0-only",
+  "apiException": "MIT only for com.dwinovo.numen.api; not the whole api module",
+  "mediaLicense": "All Rights Reserved; not included in HearthCrew source or delivery",
+  "distributionStatus": "RESEARCH_ONLY_NOT_APPROVED_FOR_INSTALLATION"
+}

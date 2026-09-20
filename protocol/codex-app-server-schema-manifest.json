@@ -1,0 +1,10 @@
+{
+  "cliVersion": "0.153.3",
+  "command": "codex app-server generate-json-schema --experimental",
+  "schemaDirectory": ".artifacts/codex-schema",
+  "fileCount": 416,
+  "aggregateSha256": "8b5bd67b368caf2a842523b67e47b1abb1d17d7a3b24150e8acd2b0433307d02",
+  "generatedAt": "2026-09-05",
+  "authIncluded": false,
+  "notes": "Generated schema files are ignored local artifacts. Regenerate and update this pin when the CLI protocol changes."
+}

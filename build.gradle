@@ -1,0 +1,16 @@
+plugins {
+    id 'base'
+    id 'net.neoforged.moddev' version '2.0.146' apply false
+}
+allprojects {
+    group = 'io.github.yufeiyufei888.hearthcrew'
+    version = providers.gradleProperty('hearthcrewVersion').getOrElse('0.3.2')
+    repositories { mavenCentral() }
+}
+subprojects {
+    plugins.withId('java') {
+        java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+        tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+        tasks.withType(Test).configureEach { useJUnitPlatform() }
+    }
+}

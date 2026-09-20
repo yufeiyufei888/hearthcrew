@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.neoforged.net/releases' }
+    }
+}
+rootProject.name = 'hearthcrew'
+include 'kernel', 'backend-api', 'mod'
+// An isolated feasibility harness; never included in normal production builds.
+if (providers.gradleProperty('backendLab').isPresent() || providers.gradleProperty('numenRelease').isPresent()) include 'backend-numen'
+if (providers.gradleProperty('backendLab').isPresent()) include 'backend-lab'

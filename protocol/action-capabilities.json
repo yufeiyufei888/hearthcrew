@@ -1,0 +1,645 @@
+{
+  "MOVE": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "默认陆路，不主动进入水域；目的地须已观察。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "FOLLOW": {
+    "allowed": [
+      "target",
+      "count"
+    ],
+    "required": [
+      "target"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001"
+    }
+  },
+  "MINE": {
+    "allowed": [
+      "position",
+      "count",
+      "resource",
+      "accessBudget",
+      "preparation"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "defaultCount": 1,
+    "fields": "position为起点，count默认1最多64块；resource可限定起始方块种类。连续采掘同类连通自然方块，起点附近8格、身体起点32格内；不能挖脚下支撑；仅在授权accessBudget内开挖安全自然通路。回执分别列出requested、broken、acquired及pendingDrops；已破坏但未拾取时恢复回收，不重挖空气。 自动从整个背包选适用工具，无需先SELECT；数量任务优先提交所需批次而非逐块调用。缺工具先查真实配方和自有材料，准备工作仍属当前阶段。 accessBudget默认16，0..64；接近与回收共享，同一SEQUENCE的所有步骤共享根预算，子步骤0可禁止其开路。不可破坏保护建筑、容器、危险地形或自动搭桥。 preparation默认启用真实材料与工位准备；显式enabled=false可关闭。预算由根任务及SEQUENCE全部步骤共享。缺失或低耐久工具优先在原任务补齐，必要工位不会被旧路径失败笼统封锁。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "count": 8,
+      "resource": "minecraft:stone",
+      "accessBudget": 16
+    }
+  },
+  "EXCAVATE": {
+    "allowed": [
+      "position",
+      "count",
+      "preparation",
+      "accessBudget"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "defaultCount": 32,
+    "fields": "32格内安全两格高通路，破坏预算默认32上限64；不采矿、不搭桥。 preparation默认启用真实材料与工位准备；显式enabled=false可关闭。预算由根任务及SEQUENCE全部步骤共享。缺失或低耐久工具优先在原任务补齐，必要工位不会被旧路径失败笼统封锁。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "count": 32
+    }
+  },
+  "PLACE": {
+    "allowed": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "EAT": {
+    "allowed": [
+      "count"
+    ],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {}
+  },
+  "SLEEP": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "ATTACK": {
+    "allowed": [
+      "target",
+      "count"
+    ],
+    "required": [
+      "target"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001"
+    }
+  },
+  "GUARD": {
+    "allowed": [
+      "target",
+      "count"
+    ],
+    "required": [
+      "target"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001"
+    }
+  },
+  "PICKUP": {
+    "allowed": [
+      "target",
+      "count",
+      "accessBudget"
+    ],
+    "required": [
+      "target"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。 accessBudget默认16，0..64；接近与回收共享，同一SEQUENCE的所有步骤共享根预算，子步骤0可禁止其开路。不可破坏保护建筑、容器、危险地形或自动搭桥。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001",
+      "accessBudget": 16
+    }
+  },
+  "PORTAL": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "WAIT": {
+    "allowed": [
+      "count"
+    ],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 2400,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。",
+    "example": {}
+  },
+  "CRAFT": {
+    "allowed": [
+      "resource",
+      "position",
+      "count",
+      "preparation",
+      "accessBudget"
+    ],
+    "required": [
+      "resource"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "defaultCount": 0,
+    "fields": "resource为服务器配方ID，count制作次数，超过2x2需真实工作台；position可省略自动寻找公共工位，显式工位失效必须报告。 preparation默认启用真实材料与工位准备；显式enabled=false可关闭。预算由根任务及SEQUENCE全部步骤共享。缺失或低耐久工具优先在原任务补齐，必要工位不会被旧路径失败笼统封锁。",
+    "example": {
+      "resource": "minecraft:birch_planks",
+      "count": 1
+    }
+  },
+  "TRANSFER": {
+    "allowed": [
+      "target",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "target",
+      "resource"
+    ],
+    "minCount": 1,
+    "maxCount": 2304,
+    "defaultCount": 0,
+    "fields": "使用真实世界目标；接受不等于完成。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001",
+      "resource": "minecraft:oak_log",
+      "count": 1
+    }
+  },
+  "GATHER": {
+    "allowed": [
+      "resource",
+      "count"
+    ],
+    "required": [
+      "resource",
+      "count"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "defaultCount": 0,
+    "fields": "主世界八类原木；每段检验天然树木及保护，附近原木未经采木验证。",
+    "example": {
+      "resource": "minecraft:oak_log",
+      "count": 1
+    }
+  },
+  "SELECT": {
+    "allowed": [
+      "slot",
+      "count"
+    ],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 35,
+    "defaultCount": 0,
+    "fields": "slot必填0..35；兼容count，冲突拒绝。",
+    "example": {
+      "slot": 1
+    }
+  },
+  "BUILD": {
+    "allowed": [
+      "steps",
+      "count"
+    ],
+    "required": [
+      "steps"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "有序1..16步，设施需正确支撑/方向/多格占用；整段结束才汇报。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "steps": [
+        {
+          "position": {
+            "x": 0,
+            "y": 64,
+            "z": 0
+          },
+          "block": "minecraft:cobblestone"
+        }
+      ]
+    }
+  },
+  "USE_ITEM": {
+    "allowed": [
+      "resource",
+      "count"
+    ],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 2400,
+    "defaultCount": 0,
+    "fields": "持续使用主手物品，count为最长游戏tick；只有实际效果可验证才完成。",
+    "example": {}
+  },
+  "INTERACT": {
+    "allowed": [
+      "position",
+      "target",
+      "resource",
+      "count"
+    ],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "position或target恰好一项。原版右键，支持耕地播种/成熟作物右键、门/设施、剪羊毛/繁殖；成熟作物收获可MINE后补种。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "EQUIP": {
+    "allowed": [
+      "resource",
+      "count"
+    ],
+    "required": [
+      "resource"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "真实物品自动装入对应防具/副手或主手槽。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "resource": "minecraft:oak_log"
+    }
+  },
+  "STORE": {
+    "allowed": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "minCount": 1,
+    "maxCount": 2304,
+    "defaultCount": 0,
+    "fields": "公共箱/木桶/炉子存入，真实槽位与数量。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "resource": "minecraft:oak_log",
+      "count": 1
+    }
+  },
+  "TAKE": {
+    "allowed": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "minCount": 1,
+    "maxCount": 2304,
+    "defaultCount": 0,
+    "fields": "公共容器取出，遵守槽位与订单归属。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "resource": "minecraft:oak_log",
+      "count": 1
+    }
+  },
+  "PROCESS": {
+    "allowed": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "defaultCount": 0,
+    "fields": "真实炉子投料与燃料订单；仅完成投料，之后observe并COLLECT_PROCESS，不能声称已产出。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      "resource": "minecraft:raw_iron",
+      "count": 1
+    }
+  },
+  "COLLECT_PROCESS": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "收取本人订单的实际产物；未完成加工返回等待条件。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "SWIM": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "Luna明确选择游泳；持续水面推进，目标必须安全可达。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "EXPLORE": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "Luna选择方向，分段推进最多256格；未知和无路返回条件。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "LAUNCH_BOAT": {
+    "allowed": [
+      "position",
+      "resource",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "背包真实船只放入已观察水面，返回实际boat UUID。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "BOARD_BOAT": {
+    "allowed": [
+      "target",
+      "count"
+    ],
+    "required": [
+      "target"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "target船UUID，必须空闲驾驶位且为伙伴船。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "target": "00000000-0000-0000-0000-000000000001"
+    }
+  },
+  "SAIL": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "已上船后用原版推进到水面坐标；受阻换航点。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "DISEMBARK": {
+    "allowed": [
+      "position",
+      "count"
+    ],
+    "required": [
+      "position"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "defaultCount": 0,
+    "fields": "position为近处安全陆地；使用原版安全下船位置。 不传count（仅兼容旧count=0）。",
+    "example": {
+      "position": {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      }
+    }
+  },
+  "COLLECT_RESOURCE": {
+    "allowed": [
+      "resource",
+      "count",
+      "candidates",
+      "position",
+      "radius",
+      "accessBudget",
+      "preparation"
+    ],
+    "required": [
+      "resource",
+      "count"
+    ],
+    "minCount": 1,
+    "maxCount": 64,
+    "fields": "按resource物品新增数量持续取得，count 1..64；candidates可选限定来源方块，缺省解析基础资源。默认preparation={enabled:true,maxDepth:6,maxSteps:16,maxBreaks:64}，在原任务范围根据真实配方补齐工具和材料。accessBudget默认16，整个任务共享。已知不可达候选跳过；超范围、缺少可执行获取方式、满包或预算用尽才请求新决策。原木仍必须通过自然树验证。 preparation默认启用真实材料与工位准备；显式enabled=false可关闭。预算由根任务及SEQUENCE全部步骤共享。缺失或低耐久工具优先在原任务补齐，必要工位不会被旧路径失败笼统封锁。",
+    "example": {
+      "resource": "minecraft:coal",
+      "count": 16,
+      "candidates": [
+        "minecraft:coal_ore",
+        "minecraft:deepslate_coal_ore"
+      ],
+      "radius": 16,
+      "accessBudget": 16
+    }
+  },
+  "SEQUENCE": {
+    "allowed": [
+      "actions",
+      "accessBudget",
+      "preparation"
+    ],
+    "required": [
+      "actions"
+    ],
+    "minCount": 0,
+    "maxCount": 0,
+    "fields": "actions包含1..8个{kind,parameters}已确定的准备步骤，不嵌套SEQUENCE，不含长期FOLLOW/GUARD或安全反射。逐步核验，失败即停，已完成步骤不重放。 accessBudget默认16，0..64；接近与回收共享，同一SEQUENCE的所有步骤共享根预算，子步骤0可禁止其开路。不可破坏保护建筑、容器、危险地形或自动搭桥。 preparation默认启用真实材料与工位准备；显式enabled=false可关闭。预算由根任务及SEQUENCE全部步骤共享。缺失或低耐久工具优先在原任务补齐，必要工位不会被旧路径失败笼统封锁。",
+    "example": {
+      "actions": [
+        {
+          "kind": "CRAFT",
+          "parameters": {
+            "resource": "minecraft:oak_planks",
+            "count": 1
+          }
+        },
+        {
+          "kind": "CRAFT",
+          "parameters": {
+            "resource": "minecraft:stick",
+            "count": 1
+          }
+        }
+      ],
+      "accessBudget": 16
+    }
+  },
+  "YIELD": {
+    "allowed": [],
+    "required": [],
+    "minCount": 0,
+    "maxCount": 0,
+    "fields": "主动让路：执行器选择附近2..4格安全站位，带空间租约。无位置或动态阻挡则有限等待后说明原因；不传坐标，不改地形。",
+    "example": {}
+  }
+}
