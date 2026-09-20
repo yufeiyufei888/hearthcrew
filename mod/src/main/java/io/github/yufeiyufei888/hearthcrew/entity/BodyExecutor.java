@@ -1949,7 +1949,7 @@ public final class BodyExecutor {
         // three-block melee check; do not send the player wandering away from
         // an already reachable dragon in that case.
         boolean closeDragon = enemy instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon
-                && body.distanceToSqr(enemy) <= 12 * 12 && body.hasLineOfSight(enemy);
+                && body.distanceToSqr(enemy) <= 32 * 32 && body.hasLineOfSight(enemy);
         if (!meleeReachable(hitTarget) && !closeDragon) {
             if (chase) approachCombatTarget(hitTarget); return;
         }
@@ -2033,7 +2033,16 @@ public final class BodyExecutor {
             fail("active portal block unavailable"); return;
         }
         if (body.isOnPortalCooldown()) {
-            if (touchesPortal()) leavePortal(); else body.getNavigation().stop();
+            if (touchesPortal()) leavePortal();
+            else {
+                // A player can arrive a fraction of a block beside the
+                // portal while its cooldown is still active.  Stopping the
+                // navigation here strands the action forever; keep steering
+                // toward the verified portal block and let vanilla perform
+                // the transfer when the cooldown expires.
+                Vec3 entrance = Vec3.atBottomCenterOf(position);
+                body.getMoveControl().setWantedPosition(entrance.x, entrance.y, entrance.z, 1.0);
+            }
             return;
         }
         Vec3 entrance = Vec3.atBottomCenterOf(position);

@@ -38,7 +38,7 @@ public final class CompanionEntity extends ServerPlayer {
     private final Jump jump=new Jump();
     public CompanionEntity(MinecraftServer server,ServerLevel level,GameProfile profile,ClientInformation information){
         super(server,level,profile,information);logicalId=profile.getId();view=new PlayerInventoryView(getInventory());navigation=new PlayerNavigation(this);
-        setGameMode(net.minecraft.world.level.GameType.SURVIVAL);getAbilities().invulnerable=false;getAbilities().mayBuild=true;
+        setGameMode(net.minecraft.world.level.GameType.SURVIVAL);setInvulnerable(false);getAbilities().invulnerable=false;getAbilities().mayBuild=true;
     }
     public SimpleContainer inventory(){return view;}
     public UUID companionId(){return logicalId == null ? getUUID() : logicalId;}
@@ -84,7 +84,8 @@ public final class CompanionEntity extends ServerPlayer {
     public final class Jump{public void jump(){jumpRequested=true;}}
     @Override public void tick(){
         if(connection==null)return;
-        super.tick();long now=serverLevel().getGameTime();if(lastTick==now)return;lastTick=now;
+        super.tick();if(!isSpectator()){setInvulnerable(false);getAbilities().invulnerable=false;}
+        long now=serverLevel().getGameTime();if(lastTick==now)return;lastTick=now;
         if(foodTickTimer>0)foodTickTimer--;if(peacefulClock>0)peacefulClock--;
         if(!isAlive()){haltInputs();if(respawnEnabled&&++deathTime>=20)CrewPlayers.queueRespawn(this);return;}
         haltInputs();ticking=true;
@@ -97,6 +98,7 @@ public final class CompanionEntity extends ServerPlayer {
     @Override public void doTick(){if(ticking)super.doTick();}
     @Override public void die(DamageSource source){if(executor!=null)executor.interruptForDeath();haltInputs();super.die(source);}
     @Override public boolean isInvulnerableTo(DamageSource source){return isSpectator();}
+    @Override public boolean isInvulnerable(){return isSpectator();}
     @Override public void restoreFrom(ServerPlayer old,boolean alive){
         super.restoreFrom(old,alive);
         if(old instanceof CompanionEntity prior){

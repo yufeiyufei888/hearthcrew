@@ -166,6 +166,7 @@ public final class P2RemoteChunkGameTests {
 
     private static void assertPlayersRemote(ServerLevel level, BlockPos start, BlockPos target) {
         for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            if (player instanceof CompanionEntity) continue; // the fixture body is expected at START/target
             if (distanceSqr(player, start) <= 128 * 128 || distanceSqr(player, target) <= 128 * 128) {
                 throw new GameTestAssertException("remote fixture is too close to a player: " + player.getGameProfile().getName()
                         + " at " + player.position());
