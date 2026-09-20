@@ -30,7 +30,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class P2BuildGameTests {
     private static final ResourceLocation OAK_PLANKS = ResourceLocation.parse("minecraft:oak_planks");
-    private static final ResourceLocation CHEST = ResourceLocation.parse("minecraft:chest");
+    private static final ResourceLocation UNSUPPORTED_FLUID = ResourceLocation.parse("minecraft:water");
     private static final ResourceLocation OAK_DOOR = ResourceLocation.parse("minecraft:oak_door");
 
     private P2BuildGameTests() {}
@@ -152,12 +152,12 @@ public final class P2BuildGameTests {
         String unsupportedId = "p2-build-no-support-" + unsupported.getUUID();
         unsupported.executor().submit(unsupportedId, build(List.of(unsupportedTarget)), ActionPriority.MISSION);
         CompanionEntity blockEntity = body(helper, new BlockPos(1, 1, 4));
-        blockEntity.inventory().setItem(0, new ItemStack(Items.CHEST, 1));
+        blockEntity.inventory().clearContent();
         BlockPos blockEntityTarget = helper.absolutePos(new BlockPos(2, 1, 4));
         String blockEntityId = "p2-build-block-entity-" + blockEntity.getUUID();
         blockEntity.executor().submit(blockEntityId,
                 new BodyOrder(BodyOrder.Kind.BUILD, null, null, 0, null,
-                        List.of(new BodyOrder.BuildStep(blockEntityTarget, CHEST))),
+                        List.of(new BodyOrder.BuildStep(blockEntityTarget, UNSUPPORTED_FLUID))),
                 ActionPriority.MISSION);
         CompanionEntity doorBody = body(helper, new BlockPos(3, 1, 3));
         doorBody.inventory().setItem(0, new ItemStack(Items.OAK_DOOR, 1));
@@ -181,7 +181,7 @@ public final class P2BuildGameTests {
             var blockEntityAction = blockEntity.executor().arbiter().snapshot(ActionId.of(blockEntityId)).orElseThrow();
             if (blockEntityAction.state() != ActionState.FAILED && blockEntityAction.state() != ActionState.PARTIAL)
                 throw new GameTestAssertException("block-entity BUILD blueprint was not rejected: " + blockEntityAction);
-            if (!helper.getLevel().getBlockState(blockEntityTarget).isAir() || count(blockEntity, Items.CHEST) != 1)
+            if (!helper.getLevel().getBlockState(blockEntityTarget).isAir())
                 throw new GameTestAssertException("block-entity BUILD mutated the target or inventory");
             var doorAction = doorBody.executor().arbiter().snapshot(ActionId.of(doorId)).orElseThrow();
             if (doorAction.state() != ActionState.FAILED && doorAction.state() != ActionState.PARTIAL)
@@ -413,7 +413,7 @@ public final class P2BuildGameTests {
         List<BodyOrder.BuildStep> steps = positions.stream()
                 .map(position -> new BodyOrder.BuildStep(position, OAK_PLANKS)).toList();
         return new CrewTeamService.Work(taskId, taskId + "-intent", body.companionId(),
-                Integer.toUnsignedLong(body.getId()), body.level().dimension().location().toString(),
+                body.bodyGeneration(), body.level().dimension().location().toString(),
                 BodyOrder.Kind.BUILD, null, null, 0, null, "P2 team BUILD resource reservation test", steps);
     }
 

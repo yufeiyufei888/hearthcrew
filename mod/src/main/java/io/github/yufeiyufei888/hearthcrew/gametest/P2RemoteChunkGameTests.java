@@ -48,7 +48,7 @@ public final class P2RemoteChunkGameTests {
         }
         body.setRespawnEnabled(false);
         body.moveTo(START.getX() + 0.5, START.getY(), START.getZ() + 0.5, 0.0F, 0.0F);
-        if (!level.noCollision(body) || !level.addFreshEntity(body)) {
+        if (!level.noCollision(body) || level.getServer().getPlayerList().getPlayer(body.getUUID()) != body) {
             body.discard();
             chunks.close();
             helper.fail("remote companion fixture could not be placed safely");

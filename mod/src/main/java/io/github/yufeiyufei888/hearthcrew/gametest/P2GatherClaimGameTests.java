@@ -86,7 +86,7 @@ public final class P2GatherClaimGameTests {
 
     private static CrewTeamService.Work work(String id, CompanionEntity body, BodyOrder.Kind kind,
                                               BlockPos position, int count, String resource) {
-        return new CrewTeamService.Work(id, id + "-intent", body.companionId(), Integer.toUnsignedLong(body.getId()),
+        return new CrewTeamService.Work(id, id + "-intent", body.companionId(), body.bodyGeneration(),
                 body.level().dimension().location().toString(), kind,
                 position == null ? null : new CrewTeamService.Position(position.getX(), position.getY(), position.getZ()),
                 null, count, resource, "GATHER claim fixture");

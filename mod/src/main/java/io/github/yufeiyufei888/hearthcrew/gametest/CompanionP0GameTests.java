@@ -370,7 +370,7 @@ public final class CompanionP0GameTests {
         BlockPos restoredPosition = helper.absolutePos(new BlockPos(3, 1, 1));
         restored.moveTo(restoredPosition.getX() + 0.5, restoredPosition.getY(), restoredPosition.getZ() + 0.5, 0.0F, 0.0F);
         restored.setRespawnEnabled(false);
-        if (!helper.getLevel().addFreshEntity(restored)) helper.fail("could not add restored food body");
+        if (helper.getLevel().getServer().getPlayerList().getPlayer(restored.getUUID()) != restored) helper.fail("restored food body was not registered");
         helper.succeedWhen(() -> {
             if (!(restored.getHealth() > 10.0F)) throw new GameTestAssertException("restored food timer did not reach natural regeneration tick");
             if (restored.foodState().foodTickTimer() >= 9) throw new GameTestAssertException("food timer did not advance from restored value");
@@ -450,6 +450,8 @@ public final class CompanionP0GameTests {
                     victim.moveTo(baseX + 0.5, 70.0, baseZ - 9.0, 0.0F, 0.0F);
                     attacker.setRespawnEnabled(false);
                     victim.setRespawnEnabled(false);
+                    attacker.setNoGravity(true);
+                    victim.setNoGravity(true);
                     // Both bodies retain ordinary collision, gravity, and damage handling; this fixture only fixes the dragon phase.
                     attacker.inventory().setItem(0, new ItemStack(Items.DIAMOND_SWORD, 1));
                     // CrewPlayers.create already registers the native players

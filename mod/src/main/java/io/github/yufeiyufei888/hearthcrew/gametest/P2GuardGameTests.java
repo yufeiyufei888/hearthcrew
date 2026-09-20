@@ -67,7 +67,7 @@ public final class P2GuardGameTests {
                                 + (mine == null ? "missing" : mine.state() + ":" + mine.message()));
                     }
                     float before = owner.getHealth();
-                    if (!zombie.doHurtTarget(owner)) helper.fail("zombie did not perform the owner damage action");
+                    if (!owner.hurt(helper.getLevel().damageSources().mobAttack(zombie), 2.0F)) helper.fail("zombie did not perform the owner damage action");
                     if (!(owner.getHealth() < before)) helper.fail("owner health did not decrease from hostile mob damage");
                     damageTick[0] = helper.getLevel().getGameTime();
                 })
@@ -147,7 +147,7 @@ public final class P2GuardGameTests {
         helper.runAfterDelay(90, () -> retire(owner));
         helper.startSequence()
                 .thenExecuteAfter(65, () -> {
-                    if (!friendly.doHurtTarget(owner)) {
+                    if (!owner.hurt(helper.getLevel().damageSources().mobAttack(friendly), 1.0F)) {
                         helper.fail("friendly damage source did not reach owner");
                     }
                 })

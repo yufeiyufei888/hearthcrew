@@ -21,6 +21,7 @@ public final class CompanionEntity extends ServerPlayer {
     private UUID ownerId;
     private int skin;
     private boolean respawnEnabled=true;
+    private int foodTickTimer,peacefulClock;
     private long bodyGeneration=1,lastTick=Long.MIN_VALUE;
     private BodyExecutor executor;
     private CompoundTag savedLedger;
@@ -33,7 +34,7 @@ public final class CompanionEntity extends ServerPlayer {
     private final Jump jump=new Jump();
     public CompanionEntity(MinecraftServer server,ServerLevel level,GameProfile profile,ClientInformation information){
         super(server,level,profile,information);view=new PlayerInventoryView(getInventory());navigation=new PlayerNavigation(this);
-        setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        setGameMode(net.minecraft.world.level.GameType.SURVIVAL);getAbilities().invulnerable=false;getAbilities().mayBuild=true;
     }
     public SimpleContainer inventory(){return view;}
     public UUID companionId(){return getUUID();}
@@ -44,8 +45,8 @@ public final class CompanionEntity extends ServerPlayer {
     public int selectedSlot(){return getInventory().selected;}
     public long bodyGeneration(){return bodyGeneration;}
     public int foodLevel(){return getFoodData().getFoodLevel();}
-    public FoodState foodState(){return new FoodState(foodLevel(),getFoodData().getSaturationLevel(),0);}
-    public void setFoodState(FoodState state){getFoodData().setFoodLevel(state.foodLevel());getFoodData().setSaturation(state.saturation());}
+    public FoodState foodState(){return new FoodState(foodLevel(),getFoodData().getSaturationLevel(),0).restoreTimers(foodTickTimer,peacefulClock);}
+    public void setFoodState(FoodState state){getFoodData().setFoodLevel(state.foodLevel());getFoodData().setSaturation(state.saturation());foodTickTimer=state.foodTickTimer();peacefulClock=state.peacefulClock();}
     public void addExhaustion(float amount){causeFoodExhaustion(amount);}
     public void selectSlot(int slot){
         if(slot<0||slot>=36)throw new IllegalArgumentException("slot");
@@ -80,6 +81,7 @@ public final class CompanionEntity extends ServerPlayer {
     @Override public void tick(){
         if(connection==null)return;
         super.tick();long now=serverLevel().getGameTime();if(lastTick==now)return;lastTick=now;
+        if(foodTickTimer>0)foodTickTimer--;if(peacefulClock>0)peacefulClock--;
         if(!isAlive()){haltInputs();if(respawnEnabled&&++deathTime>=20)CrewPlayers.queueRespawn(this);return;}
         haltInputs();ticking=true;
         try{
@@ -101,7 +103,14 @@ public final class CompanionEntity extends ServerPlayer {
     }
     @Override public boolean isAlliedTo(Entity e){return ownerId!=null&&(ownerId.equals(e.getUUID())||e instanceof CompanionEntity p&&ownerId.equals(p.ownerId))||super.isAlliedTo(e);}
     @Override public Entity changeDimension(net.minecraft.world.level.portal.DimensionTransition transition){
-        if(executor!=null)executor.interruptForDimensionChange();navigation.stop();bodyGeneration++;return super.changeDimension(transition);
+        var previous=executor;var sourceDimension=level().dimension();
+        if(previous!=null)previous.interruptForDimensionChange();navigation.stop();bodyGeneration++;
+        Entity result=super.changeDimension(transition);
+        if(result instanceof CompanionEntity destination && previous!=null && previous.hasPortalWork()
+                && destination.executor==null && sourceDimension!=destination.level().dimension()) {
+            destination.executor=previous.afterDimensionChange(destination,true);
+        }
+        return result;
     }
     @Override public void teleportTo(ServerLevel level,double x,double y,double z,float yaw,float pitch){
         if(!relocating&&executor!=null){executor.interruptForDeath();navigation.stop();bodyGeneration++;}
@@ -116,6 +125,7 @@ public final class CompanionEntity extends ServerPlayer {
         super.addAdditionalSaveData(tag);if(ownerId!=null)tag.putUUID("CrewOwner",ownerId);
         tag.putUUID("CrewIdentity",getUUID());tag.putInt("CrewSkin",skin);tag.putLong("CrewBodyGeneration",bodyGeneration);
         tag.putBoolean("CrewRespawnEnabled",respawnEnabled);
+        tag.putInt("CrewFoodTickTimer",foodTickTimer);tag.putInt("CrewPeacefulClock",peacefulClock);
         if(executor!=null)tag.put("CrewActionLedger",executor.saveLedger());else if(savedLedger!=null)tag.put("CrewActionLedger",savedLedger.copy());
     }
     @Override public void readAdditionalSaveData(CompoundTag tag){
@@ -124,6 +134,7 @@ public final class CompanionEntity extends ServerPlayer {
         if(tag.hasUUID("CrewOwner"))ownerId=tag.getUUID("CrewOwner");
         skin=Math.floorMod(tag.getInt("CrewSkin"),3);bodyGeneration=Math.max(1,tag.getLong("CrewBodyGeneration"))+1;
         respawnEnabled=!tag.contains("CrewRespawnEnabled")||tag.getBoolean("CrewRespawnEnabled");
+        foodTickTimer=Math.max(0,tag.getInt("CrewFoodTickTimer"));peacefulClock=Math.max(0,tag.getInt("CrewPeacefulClock"));
         savedLedger=tag.contains("CrewActionLedger")?tag.getCompound("CrewActionLedger").copy():null;executor=null;
     }
 }

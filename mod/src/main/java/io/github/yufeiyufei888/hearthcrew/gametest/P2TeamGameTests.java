@@ -236,7 +236,7 @@ public final class P2TeamGameTests {
         if (submittedReceipt.decision() != ReceiptDecision.ACCEPTED)
             helper.fail("replacement fixture WAIT was not accepted: " + submitted);
         ActionId oldActionId = submittedReceipt.id();
-        long oldGeneration = Integer.toUnsignedLong(original.getId());
+        long oldGeneration = original.bodyGeneration();
         UUID logicalId = original.companionId();
         UUID oldEntityId = original.getUUID();
         CompoundTag savedBody = new CompoundTag();
@@ -250,7 +250,7 @@ public final class P2TeamGameTests {
         replacement.readAdditionalSaveData(savedBody);
         replacement.setRespawnEnabled(false);
         if (!logicalId.equals(replacement.companionId()) || oldEntityId.equals(replacement.getUUID())) helper.fail("replacement did not preserve logical identity with a new entity identity");
-        long newGeneration = Integer.toUnsignedLong(replacement.getId());
+        long newGeneration = replacement.bodyGeneration();
         if (newGeneration == oldGeneration) helper.fail("replacement body generation was not changed");
 
         CrewTeamService restored = new CrewTeamService(helper.getLevel().getServer(), data);
@@ -346,7 +346,7 @@ public final class P2TeamGameTests {
 
     private static CrewTeamService.Work work(String taskId, CompanionEntity body, BodyOrder.Kind kind, BlockPos position,
                                              UUID target, int count, String resource) {
-        return new CrewTeamService.Work(taskId, taskId + "-action", body.companionId(), Integer.toUnsignedLong(body.getId()),
+        return new CrewTeamService.Work(taskId, taskId + "-action", body.companionId(), body.bodyGeneration(),
                 body.level().dimension().location().toString(), kind,
                 position == null ? null : new CrewTeamService.Position(position.getX(), position.getY(), position.getZ()),
                 target, count, resource, "P2 isolated team fixture");

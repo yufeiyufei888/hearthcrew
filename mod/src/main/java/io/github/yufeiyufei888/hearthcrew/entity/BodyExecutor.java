@@ -1688,7 +1688,7 @@ public final class BodyExecutor {
                 }planned.add(target);
             }
             for(var entry:required.entrySet()) {int available=0;for(int slot=0;slot<36;slot++){var item=body.inventory().getItem(slot);if(item.getItem() instanceof BlockItem bi && entry.getKey().equals(BuiltInRegistries.BLOCK.getKey(bi.getBlock())))available+=item.getCount();}
-                if(available<entry.getValue()){fail("BUILD preflight: missing material "+entry.getKey()+" required="+entry.getValue()+" available="+available);return;}}
+                if(available<entry.getValue()){finish(ActionState.PARTIAL,"BUILD preflight: missing material "+entry.getKey()+" required="+entry.getValue()+" available="+available);return;}}
             buildPreflightDone.add(executing);
         }
         if (order.steps().isEmpty()) { fail("build has no steps"); return; }
