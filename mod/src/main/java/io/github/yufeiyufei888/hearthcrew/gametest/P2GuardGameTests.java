@@ -59,20 +59,20 @@ public final class P2GuardGameTests {
         zombie.setHealth(1.0F);
         long[] damageTick = {-1L};
         helper.startSequence()
-                .thenExecuteAfter(65, () -> body.executor().submit(mineId, BodyOrder.mine(log), ActionPriority.MISSION))
-                .thenWaitUntil(() -> {
+                .thenExecute(() -> body.executor().submit(mineId, BodyOrder.mine(log), ActionPriority.MISSION))
+                .thenExecuteAfter(1, () -> {
                     var mine = body.executor().arbiter().snapshot(ActionId.of(mineId)).orElse(null);
-                    if (mine != null && mine.state() == ActionState.RUNNING && !helper.getLevel().getBlockState(log).isAir()) {
-                        float before = owner.getHealth();
-                        if (!zombie.doHurtTarget(owner)) helper.fail("zombie did not perform the owner damage action");
-                        if (!(owner.getHealth() < before)) helper.fail("owner health did not decrease from hostile mob damage");
-                        damageTick[0] = helper.getLevel().getGameTime();
-                        return;
+                    if (mine == null || mine.state().terminal()) {
+                        throw new GameTestAssertException("MINE did not remain active before owner hit: "
+                                + (mine == null ? "missing" : mine.state() + ":" + mine.message()));
                     }
-                    if (mine != null && mine.state().terminal()) {
-                        throw new GameTestAssertException("MINE completed before the owner hit: " + mine.state() + ":" + mine.message());
-                    }
-                    throw new GameTestAssertException("waiting for a running slow MINE before the owner hit");
+                    float before = owner.getHealth();
+                    if (!zombie.doHurtTarget(owner)) helper.fail("zombie did not perform the owner damage action");
+                    if (!(owner.getHealth() < before)) helper.fail("owner health did not decrease from hostile mob damage");
+                    damageTick[0] = helper.getLevel().getGameTime();
+                })
+                .thenWaitUntil(() -> {
+                    if (damageTick[0] < 0) throw new GameTestAssertException("owner damage was not scheduled");
                 })
                 .thenWaitUntil(() -> {
                     var active = body.executor().arbiter().activeSnapshot();

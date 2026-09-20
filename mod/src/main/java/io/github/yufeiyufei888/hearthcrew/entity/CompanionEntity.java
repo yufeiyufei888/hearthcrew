@@ -92,11 +92,16 @@ public final class CompanionEntity extends ServerPlayer {
     @Override public void die(DamageSource source){if(executor!=null)executor.interruptForDeath();haltInputs();super.die(source);}
     @Override public void restoreFrom(ServerPlayer old,boolean alive){
         super.restoreFrom(old,alive);
-        if(old instanceof CompanionEntity prior){ownerId=prior.ownerId;skin=prior.skin;respawnEnabled=prior.respawnEnabled;bodyGeneration=prior.bodyGeneration+1;savedLedger=prior.executor().saveLedger();}
+        if(old instanceof CompanionEntity prior){
+            ownerId=prior.ownerId;skin=prior.skin;respawnEnabled=prior.respawnEnabled;bodyGeneration=prior.bodyGeneration+1;
+            var previous=prior.executor();
+            if(previous.hasPortalWork()) executor=previous.afterDimensionChange(this,true);
+            else savedLedger=previous.saveLedger();
+        }
     }
     @Override public boolean isAlliedTo(Entity e){return ownerId!=null&&(ownerId.equals(e.getUUID())||e instanceof CompanionEntity p&&ownerId.equals(p.ownerId))||super.isAlliedTo(e);}
     @Override public Entity changeDimension(net.minecraft.world.level.portal.DimensionTransition transition){
-        if(executor!=null)executor.interruptForDeath();navigation.stop();bodyGeneration++;return super.changeDimension(transition);
+        if(executor!=null)executor.interruptForDimensionChange();navigation.stop();bodyGeneration++;return super.changeDimension(transition);
     }
     @Override public void teleportTo(ServerLevel level,double x,double y,double z,float yaw,float pitch){
         if(!relocating&&executor!=null){executor.interruptForDeath();navigation.stop();bodyGeneration++;}

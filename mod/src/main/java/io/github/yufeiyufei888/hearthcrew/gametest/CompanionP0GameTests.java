@@ -452,7 +452,13 @@ public final class CompanionP0GameTests {
                     victim.setRespawnEnabled(false);
                     // Both bodies retain ordinary collision, gravity, and damage handling; this fixture only fixes the dragon phase.
                     attacker.inventory().setItem(0, new ItemStack(Items.DIAMOND_SWORD, 1));
-                    if (!end.addFreshEntity(attacker) || !end.addFreshEntity(victim)) throw new GameTestAssertException("could not add End test companions");
+                    // CrewPlayers.create already registers the native players
+                    // with the server. Adding them a second time reuses their
+                    // UUID and leaves the later references null.
+                    if (end.getServer().getPlayerList().getPlayer(attacker.getUUID()) != attacker
+                            || end.getServer().getPlayerList().getPlayer(victim.getUUID()) != victim) {
+                        throw new GameTestAssertException("End test companions were not registered");
+                    }
                     dragonRef[0] = dragon;
                     attackerRef[0] = attacker;
                     victimRef[0] = victim;

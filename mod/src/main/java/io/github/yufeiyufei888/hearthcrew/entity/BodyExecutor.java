@@ -523,6 +523,14 @@ public final class BodyExecutor {
     public boolean paused() { return paused; }
     public boolean recoveryInvalid() { return recoveryInvalid; }
 
+    /** Whether the active lease is the portal transition that must survive
+     * vanilla's source/destination player replacement. */
+    public boolean hasPortalWork() {
+        return arbiter.activeSnapshot()
+                .map(snapshot -> effectiveOrder(snapshot.id(), snapshot.payload()).kind() == BodyOrder.Kind.PORTAL)
+                .orElse(false);
+    }
+
     /** True only while the GUARD lease owns this body's execution slot. */
     public boolean isGuarding() {
         return arbiter.activeSnapshot().map(snapshot -> effectiveOrder(snapshot.id(),snapshot.payload()).kind() == BodyOrder.Kind.GUARD).orElse(false);
@@ -678,6 +686,21 @@ public final class BodyExecutor {
         // that existed before death so a new body can be reconciled and plan.
         // An explicit owner stop/pause (or invalid archive) remains in force.
         stopped = ownerStopped;
+    }
+
+    /**
+     * Dimension changes are not deaths. Preserve a portal lease so
+     * restoreFrom can attach it to the destination player; ordinary work is
+     * retired because its world coordinates are no longer valid.
+     */
+    public void interruptForDimensionChange() {
+        requireServerThread();
+        if (hasPortalWork()) {
+            releaseSpace();
+            stopMotion();
+            return;
+        }
+        interruptForDeath();
     }
     /** Freeze this body's action lease while allowing external game effects. */
     public void pause() {
