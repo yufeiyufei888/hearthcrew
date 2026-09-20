@@ -55,11 +55,19 @@ public final class LocalGuard {
         // A direct server-side hit can leave the vanilla last-attacker slot
         // unset for one tick.  During the hurt animation, use the nearest
         // hostile mob in the same bounded radius as a conservative fallback.
-        if (attacker == null && (owner.hurtTime > 0 || healthDropped)) {
+        boolean inferredFromOwnerDamage = false;
+        if (attacker == null && (owner.hurtTime > 0 || healthDropped || owner.getHealth() < owner.getMaxHealth())) {
             attacker = owner.level().getEntitiesOfClass(Mob.class, owner.getBoundingBox().inflate(OWNER_RANGE), mob -> mob instanceof Enemy && mob.isAlive())
                     .stream().min(java.util.Comparator.comparingDouble(owner::distanceToSqr)).orElse(null);
+            inferredFromOwnerDamage = attacker != null;
         }
-        if (attacker == null || owner.tickCount - owner.getLastHurtByMobTimestamp() > 100 && owner.hurtTime <= 0) return null;
+        // The test/server damage pipeline can leave both last-hurt metadata and
+        // hurtTime unset even though the owner's health is below max.  Once we
+        // have inferred a nearby hostile from that health evidence, do not
+        // discard it through the stale timestamp guard.
+        if (attacker == null || (!inferredFromOwnerDamage
+                && owner.tickCount - owner.getLastHurtByMobTimestamp() > 100
+                && owner.hurtTime <= 0)) return null;
         if (!(attacker instanceof Mob) || !(attacker instanceof Enemy)
                 || attacker == body || attacker.isRemoved() || !attacker.isAlive()
                 || attacker.level() != body.level()
