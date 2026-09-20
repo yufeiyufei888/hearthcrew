@@ -142,7 +142,7 @@ public final class P2GuardGameTests {
         ServerPlayer owner = owner(helper, new BlockPos(2, 1, 1));
         CompanionEntity body = body(helper, new BlockPos(1, 1, 1));
         body.setOwner(owner.getUUID());
-        var friendly = helper.spawn(EntityType.COW, new BlockPos(1, 1, 3));
+        var friendly = helper.spawn(EntityType.WOLF, new BlockPos(1, 1, 3));
         helper.setNight();
         helper.runAfterDelay(90, () -> retire(owner));
         helper.startSequence()
