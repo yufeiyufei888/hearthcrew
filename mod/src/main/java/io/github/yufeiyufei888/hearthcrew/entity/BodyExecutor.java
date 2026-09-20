@@ -24,6 +24,7 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.tags.BlockTags;
@@ -488,6 +489,7 @@ public final class BodyExecutor {
     private net.minecraft.nbt.CompoundTag invalidRecoveryArchive;
     private boolean portalArrived;
     private BlockPos portalExit;
+    private ResourceKey<Level> portalOriginDimension;
 
 
     public BodyExecutor(CompanionEntity body) {
@@ -516,6 +518,16 @@ public final class BodyExecutor {
         waterInterrupted.clear();
         suspendedMiningDrops.clear();
         suspendedGatherCollected.clear();
+        return next;
+    }
+    /** Vanilla may replace a ServerPlayer in-place during portal handling, so
+     * the source and destination dimensions are already equal by the time
+     * restoreFrom/changeDimension returns.  Preserve the portal lease
+     * explicitly instead of requiring a second dimension comparison. */
+    public BodyExecutor afterPortalTransfer(CompanionEntity destination) {
+        requireServerThread();
+        BodyExecutor next = new BodyExecutor(destination, this);
+        next.portalArrived = true;
         return next;
     }
     public ActionArbiter<BodyOrder, Checkpoint> arbiter() { return arbiter; }
@@ -1878,7 +1890,7 @@ public final class BodyExecutor {
     private void transfer(BodyOrder order) {
         Entity recipient = entity(order.target());
         if (recipient == null || !recipient.isAlive() || order.resource() == null || order.count() < 1) { fail("recipient or requested item unavailable"); return; }
-        if (body.distanceToSqr(recipient) > 9 || !body.hasLineOfSight(recipient)) { moveTo(recipient.blockPosition(), 1.0, false); return; }
+        if (body.distanceToSqr(recipient) > 16 || !body.hasLineOfSight(recipient)) { moveTo(recipient.blockPosition(), 1.0, false); return; }
         body.getNavigation().stop();
         var result = io.github.yufeiyufei888.hearthcrew.gameplay.RecipeActions.transfer((ServerLevel)body.level(), body.getUUID(), recipient.getUUID(), order.resource(), order.count());
         finish(result.completed() ? ActionState.COMPLETED : result.movedCount() > 0 ? ActionState.PARTIAL : ActionState.FAILED,
@@ -1931,7 +1943,14 @@ public final class BodyExecutor {
             return;
         }
         body.getLookControl().setLookAt(aim.x, aim.y, aim.z, 35, 35);
-        if (!meleeReachable(hitTarget)) {
+        // Ender Dragon hitboxes expose several moving sub-entities.  A legal
+        // ground stance can be close enough to the dragon body even when the
+        // selected sub-part's closest point is just outside the ordinary
+        // three-block melee check; do not send the player wandering away from
+        // an already reachable dragon in that case.
+        boolean closeDragon = enemy instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon
+                && body.distanceToSqr(enemy) <= 12 * 12 && body.hasLineOfSight(enemy);
+        if (!meleeReachable(hitTarget) && !closeDragon) {
             if (chase) approachCombatTarget(hitTarget); return;
         }
         if (chase) body.getNavigation().stop();
@@ -2001,6 +2020,11 @@ public final class BodyExecutor {
     }
 
     private void enterPortal(BlockPos position) {
+        if (portalOriginDimension == null) portalOriginDimension = body.level().dimension();
+        // Some vanilla portal paths replace the ServerPlayer without calling
+        // our changeDimension hook.  The persisted action itself still tells
+        // us that the body has arrived when its dimension changes.
+        if (!portalArrived && !portalOriginDimension.equals(body.level().dimension())) portalArrived = true;
         if (portalArrived) {
             if (!touchesPortal() && body.onGround()) { complete("native dimension transfer and physical portal exit verified"); return; }
             leavePortal(); return;
@@ -2475,7 +2499,7 @@ public final class BodyExecutor {
             digWorks.remove(id);buildPreflightDone.remove(id);
         });
         if (portalArrived) {
-            portalArrived = false; portalExit = null;
+            portalArrived = false; portalExit = null; portalOriginDimension = null;
             var epoch = arbiter.epoch();
             arbiter.advanceEpoch(new WorldEpoch(epoch.worldGeneration(), epoch.sessionGeneration(), body.bodyGeneration()),
                     "dimension changed; remaining tasks need new observations");

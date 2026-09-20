@@ -100,11 +100,13 @@ public final class P2BuildGameTests {
         helper.startSequence().thenWaitUntil(() -> {
             var action = body.executor().arbiter().snapshot(ActionId.of(id)).orElseThrow();
             if (action.state() != ActionState.PARTIAL) throw new GameTestAssertException("missing material was not reported PARTIAL: " + action);
-            if (!helper.getLevel().getBlockState(targets.get(0)).is(Blocks.OAK_PLANKS)
-                    || !helper.getLevel().getBlockState(targets.get(1)).is(Blocks.OAK_PLANKS)
-                    || !helper.getLevel().getBlockState(targets.get(2)).isAir())
-                throw new GameTestAssertException("partial BUILD changed the wrong targets");
-            if (count(body, Items.OAK_PLANKS) != 0) throw new GameTestAssertException("partial BUILD did not account for exact material use");
+            // Preflight is atomic: a missing third plank must not place the
+            // first two steps and leave a misleading partial world mutation.
+            for (BlockPos target : targets) {
+                if (!helper.getLevel().getBlockState(target).isAir())
+                    throw new GameTestAssertException("partial BUILD changed a target before material preflight completed");
+            }
+            if (count(body, Items.OAK_PLANKS) != 2) throw new GameTestAssertException("partial BUILD consumed material during failed preflight");
         }).thenSucceed();
     }
 
@@ -184,10 +186,10 @@ public final class P2BuildGameTests {
             if (!helper.getLevel().getBlockState(blockEntityTarget).isAir())
                 throw new GameTestAssertException("block-entity BUILD mutated the target or inventory");
             var doorAction = doorBody.executor().arbiter().snapshot(ActionId.of(doorId)).orElseThrow();
-            if (doorAction.state() != ActionState.FAILED && doorAction.state() != ActionState.PARTIAL)
-                throw new GameTestAssertException("multi-block door blueprint was not rejected: " + doorAction);
-            if (!helper.getLevel().getBlockState(doorTarget).isAir() || count(doorBody, Items.OAK_DOOR) != 1)
-                throw new GameTestAssertException("door BUILD mutated the target or inventory");
+            if (doorAction.state() != ActionState.COMPLETED)
+                throw new GameTestAssertException("supported door blueprint did not complete: " + doorAction);
+            if (!helper.getLevel().getBlockState(doorTarget).is(Blocks.OAK_DOOR) || count(doorBody, Items.OAK_DOOR) != 0)
+                throw new GameTestAssertException("door BUILD did not produce the real door block and consumption");
         }).thenSucceed();
     }
 

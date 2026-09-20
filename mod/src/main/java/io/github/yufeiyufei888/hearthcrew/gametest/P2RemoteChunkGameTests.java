@@ -28,9 +28,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class P2RemoteChunkGameTests {
     private static final int FLOOR_Y = 64;
-    private static final BlockPos START = new BlockPos(328, FLOOR_Y + 1, 0);  // chunk 20 center
-    private static final BlockPos FIRST_TARGET = new BlockPos(360, FLOOR_Y + 1, 0); // chunk 22 center
-    private static final BlockPos FINAL_TARGET = new BlockPos(392, FLOOR_Y + 1, 0); // chunk 24 center
+    // Keep the remote fixture away from GameTest's mock player at x=328.
+    private static final BlockPos START = new BlockPos(640, FLOOR_Y + 1, 0);  // chunk 40 center
+    private static final BlockPos FIRST_TARGET = new BlockPos(672, FLOOR_Y + 1, 0); // chunk 42 center
+    private static final BlockPos FINAL_TARGET = new BlockPos(704, FLOOR_Y + 1, 0); // chunk 44 center
 
     private P2RemoteChunkGameTests() {}
 

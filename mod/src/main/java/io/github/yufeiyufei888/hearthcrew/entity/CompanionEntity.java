@@ -18,6 +18,10 @@ import io.github.yufeiyufei888.hearthcrew.runtime.CrewPlayers;
 
 /** Native server player. Only the executor submits inputs; native player physics owns motion. */
 public final class CompanionEntity extends ServerPlayer {
+    /** Stable HearthCrew identity.  The native player UUID may change when a
+     * test body is replaced, respawned, or transferred; routing and ledgers
+     * must continue to use this logical identity. */
+    private UUID logicalId;
     private UUID ownerId;
     private int skin;
     private boolean respawnEnabled=true;
@@ -33,11 +37,11 @@ public final class CompanionEntity extends ServerPlayer {
     private final Move move=new Move();
     private final Jump jump=new Jump();
     public CompanionEntity(MinecraftServer server,ServerLevel level,GameProfile profile,ClientInformation information){
-        super(server,level,profile,information);view=new PlayerInventoryView(getInventory());navigation=new PlayerNavigation(this);
+        super(server,level,profile,information);logicalId=profile.getId();view=new PlayerInventoryView(getInventory());navigation=new PlayerNavigation(this);
         setGameMode(net.minecraft.world.level.GameType.SURVIVAL);getAbilities().invulnerable=false;getAbilities().mayBuild=true;
     }
     public SimpleContainer inventory(){return view;}
-    public UUID companionId(){return getUUID();}
+    public UUID companionId(){return logicalId == null ? getUUID() : logicalId;}
     public UUID ownerId(){return ownerId;}
     public void setOwner(UUID id){ownerId=id;}
     public int skinIndex(){return skin;}
@@ -92,10 +96,11 @@ public final class CompanionEntity extends ServerPlayer {
     }
     @Override public void doTick(){if(ticking)super.doTick();}
     @Override public void die(DamageSource source){if(executor!=null)executor.interruptForDeath();haltInputs();super.die(source);}
+    @Override public boolean isInvulnerableTo(DamageSource source){return isSpectator();}
     @Override public void restoreFrom(ServerPlayer old,boolean alive){
         super.restoreFrom(old,alive);
         if(old instanceof CompanionEntity prior){
-            ownerId=prior.ownerId;skin=prior.skin;respawnEnabled=prior.respawnEnabled;bodyGeneration=prior.bodyGeneration+1;
+            logicalId=prior.companionId();ownerId=prior.ownerId;skin=prior.skin;respawnEnabled=prior.respawnEnabled;bodyGeneration=prior.bodyGeneration+1;
             var previous=prior.executor();
             if(previous.hasPortalWork()) executor=previous.afterDimensionChange(this,true);
             else savedLedger=previous.saveLedger();
@@ -108,7 +113,7 @@ public final class CompanionEntity extends ServerPlayer {
         Entity result=super.changeDimension(transition);
         if(result instanceof CompanionEntity destination && previous!=null && previous.hasPortalWork()
                 && destination.executor==null && sourceDimension!=destination.level().dimension()) {
-            destination.executor=previous.afterDimensionChange(destination,true);
+            destination.executor=previous.afterPortalTransfer(destination);
         }
         return result;
     }
@@ -123,14 +128,14 @@ public final class CompanionEntity extends ServerPlayer {
     }
     @Override public void addAdditionalSaveData(CompoundTag tag){
         super.addAdditionalSaveData(tag);if(ownerId!=null)tag.putUUID("CrewOwner",ownerId);
-        tag.putUUID("CrewIdentity",getUUID());tag.putInt("CrewSkin",skin);tag.putLong("CrewBodyGeneration",bodyGeneration);
+        tag.putUUID("CrewIdentity",companionId());tag.putInt("CrewSkin",skin);tag.putLong("CrewBodyGeneration",bodyGeneration);
         tag.putBoolean("CrewRespawnEnabled",respawnEnabled);
         tag.putInt("CrewFoodTickTimer",foodTickTimer);tag.putInt("CrewPeacefulClock",peacefulClock);
         if(executor!=null)tag.put("CrewActionLedger",executor.saveLedger());else if(savedLedger!=null)tag.put("CrewActionLedger",savedLedger.copy());
     }
     @Override public void readAdditionalSaveData(CompoundTag tag){
         super.readAdditionalSaveData(tag);
-        if(tag.hasUUID("CrewIdentity"))setUUID(tag.getUUID("CrewIdentity"));
+        if(tag.hasUUID("CrewIdentity"))logicalId=tag.getUUID("CrewIdentity");
         if(tag.hasUUID("CrewOwner"))ownerId=tag.getUUID("CrewOwner");
         skin=Math.floorMod(tag.getInt("CrewSkin"),3);bodyGeneration=Math.max(1,tag.getLong("CrewBodyGeneration"))+1;
         respawnEnabled=!tag.contains("CrewRespawnEnabled")||tag.getBoolean("CrewRespawnEnabled");

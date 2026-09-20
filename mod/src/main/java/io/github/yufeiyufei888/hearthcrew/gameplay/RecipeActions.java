@@ -36,7 +36,11 @@ public final class RecipeActions {
     private static final int STATION_HEIGHT = 3;
     private static final int MAX_REPETITIONS = 64;
     private static final int MAX_SEARCH_STEPS = 10_000;
-    private static final double TRANSFER_RANGE_SQR = 9.0D;
+    // A three-block radius is too tight for the normal two-body handoff
+    // position (diagonal neighbors are 3.6 blocks apart).  Keep the
+    // server-side transfer local and line-of-sight checked, but allow the
+    // standard four-block interaction envelope.
+    private static final double TRANSFER_RANGE_SQR = 16.0D;
 
     private RecipeActions() {}
 
