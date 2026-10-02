@@ -11,7 +11,7 @@ const snapshot=JSON.parse(input),summary=await load(join(out,`${runId}-luna-summ
 const fixture=await load(join(control,'fixture-ready.json')),ledger=await load(join(out,'luna-budget.json'));
 const totals=Object.fromEntries(['single','crew'].map(phase=>[phase,ledger.runs.filter(r=>r.phase===phase).reduce((n,r)=>n+(r.modelWallSeconds??0),0)]));
 if(!fixture.emptyInventories||fixture.companions!==3||!summary.modelContract||summary.run.threads.length!==3
-    ||new Set(summary.run.threads.map(t=>t.threadId)).size!==3||summary.run.threads.some(t=>t.model!=='gpt-5.6-luna'||t.reasoningEffort!=='high')
+    ||new Set(summary.run.threads.map(t=>t.threadId)).size!==3||summary.run.threads.some(t=>t.model!=='gpt-6-luna'||t.reasoningEffort!=='high')
     ||totals.single>900||totals.crew>900||!ledger.runs.some(r=>r.phase==='single'&&r.passed))throw Error('Fixture/model/budget contract failed');
 const rows=snapshot.companions.map(r=>{
     const unique=new Map(r.actions.map(a=>[`${a.world}:${a.companion}:${a.generation}:${a.actionId}`,a]));

@@ -5,7 +5,7 @@ license="Apache-2.0"
 config="hearthcrew-backend.mixins.json"
 [[mods]]
 modId="hearthcrew_backend_lab"
-version="0.3.2-lab"
+version="0.3.5-lab"
 displayName="HearthCrew isolated backend laboratory - not a gameplay release"
 [[dependencies.hearthcrew_backend_lab]]
 modId="neoforge"

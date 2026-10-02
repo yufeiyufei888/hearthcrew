@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
     id 'net.neoforged.moddev'
 }
-version = '0.3.2-experimental'
+version = '0.3.5-experimental'
 evaluationDependsOn(':kernel')
 def upstream = rootProject.file('.runtime/backend-v03/numen-947f0064')
 def bundle = providers.gradleProperty('backendDependencyBundle').orNull

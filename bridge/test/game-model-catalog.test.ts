@@ -8,8 +8,8 @@ import { makeGameOnlyCatalog, prepareGameModelCatalog } from "../src/game-model-
 
 function completeLuna(): Record<string, unknown> {
   return {
-    slug: "gpt-5.6-luna",
-    display_name: "GPT-5.6-Luna",
+    slug: "gpt-6-luna",
+    display_name: "GPT-6-Luna",
     description: "Fast and affordable agentic coding model.",
     default_reasoning_level: "medium",
     supported_reasoning_levels: [{ effort: "low", description: "low" }, { effort: "high", description: "high" }],
@@ -31,6 +31,7 @@ function completeLuna(): Record<string, unknown> {
     node_repl_disabled: false,
     tool_mode: "code_mode_only",
     multi_agent_version: "v1",
+    experimental_supported_tools: ["send_user_message_async", "clock"],
     base_instructions: "test instructions",
     future_parameter: { preserved: true },
   };
@@ -41,18 +42,19 @@ test("makeGameOnlyCatalog selects complete Luna and preserves unrelated metadata
   const result = makeGameOnlyCatalog(raw);
   assert.equal(result.models.length, 1);
   assert.deepEqual(result.models[0].future_parameter, { preserved: true });
-  assert.equal(result.models[0].slug, "gpt-5.6-luna");
+  assert.equal(result.models[0].slug, "gpt-6-luna");
   assert.equal(result.models[0].tool_mode, "code_mode_only");
   assert.equal(result.models[0].shell_type, "disabled");
   assert.equal(result.models[0].apply_patch_tool_type, null);
   assert.equal(result.models[0].supports_search_tool, false);
   assert.equal(result.models[0].node_repl_disabled, true);
   assert.equal(result.models[0].multi_agent_version, null);
+  assert.deepEqual(result.models[0].experimental_supported_tools, []);
   assert.equal((raw.models[1] as Record<string, unknown>).shell_type, "unified_exec");
 });
 
 test("makeGameOnlyCatalog rejects missing, incomplete, or ambiguous Luna entries", () => {
-  assert.throws(() => makeGameOnlyCatalog({ models: [] }), /does not contain gpt-5\.6-luna/);
+  assert.throws(() => makeGameOnlyCatalog({ models: [] }), /does not contain gpt-6-luna/);
   const incomplete = completeLuna();
   delete incomplete.base_instructions;
   assert.throws(() => makeGameOnlyCatalog({ models: [incomplete] }), /base_instructions/);
@@ -71,7 +73,7 @@ test("prepareGameModelCatalog runs only the bounded debug command and writes an 
       workspace: directory,
       outputDirectory,
     });
-    assert.equal(result.modelSlug, "gpt-5.6-luna");
+    assert.equal(result.modelSlug, "gpt-6-luna");
     assert.equal(result.modelCount, 1);
     assert.match(result.catalogPath, /hearthcrew-game-only-luna-.*\.catalog\.json$/);
     const output = await readFile(result.catalogPath);

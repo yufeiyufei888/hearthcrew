@@ -80,6 +80,9 @@ final class PreparationTask implements Task {
         }
         if(index>=selection.plan().steps().size()) {
             boolean verified=request instanceof CollectRequest?goalOwn()+goalTeam()>=request.count:request instanceof RecipeCraftRequest?craftedGoal>=request.count:PreparationCatalog.eligible(body,request.output,request.minimumDurability)>=request.count;
+            if(!verified&&request instanceof CollectRequest&&physicalSteps<request.limits.maxSteps()){
+                continueCollection("CONTINUING_NEXT_RESOURCE_BATCH");return TaskState.RUNNING;
+            }
             if(!verified){condition="PREPARATION_OUTPUT_NOT_VERIFIED";return TaskState.FAILED;}
             if(new ItemStack(request.output).isDamageableItem()) {
                 int best=-1,remaining=-1;
@@ -172,25 +175,29 @@ final class PreparationTask implements Task {
         boolean verified=state==TaskState.SUCCESS&&switch(operation.kind()) {
             case CRAFT -> after-before>=step.quantity();
             case APPROACH -> FacilityProbe.usableNow(body,operation.position());
-            case PLACE -> before-after==1&&FacilityProbe.usableNow(body,operation.position());
+            case PLACE -> before-after==1&&body.level().getBlockState(operation.position()).is(Blocks.CRAFTING_TABLE)
+                &&BackendJournal.get(body.server).isPublic(body.level().dimension(),operation.position());
             case ACQUIRE -> isGoalSource()?pickup.ownAcquired(operation.item())+pickup.teamAcquired(operation.item())>=step.quantity():after-before>=step.quantity()&&pickup.ownAcquired(operation.item())>=step.quantity();
         };
         receipts.add(Map.of("revision",replans,"index",index,"executionId",childRecord.getToolCallId(),"method",step.method(),"state",state.name(),"verified",verified,"inventoryDelta",after-before,"native",result==null?"NO_RESULT":result.toJson(),"pickup",pickup==null?Map.of():pickup.evidence()));
         child=null;
         if(!verified){
+            // A native empty-index/failed batch used to select the identical source again
+            // until all sixteen preparation steps were spent. Reject that physical batch
+            // under its terrain fingerprint; keep other candidates and real drop evidence.
+            if(operation.kind()==PreparationCatalog.Kind.ACQUIRE&&!toolMissing()&&childRecovery==null)
+                NumenBackend.acquisitionFailed(body,"ACQUISITION_BATCH_REJECTED:"+(result==null?state.name():result.toJson()));
             // Upstream's inventory-delta counter can finish after picking up a peer's
             // unrelated output. Preserve that receipt, but only this root's drop proofs
             // satisfy its goal. A partially productive candidate with an inaccessible drop
             // also leaves a shortfall, not proof that all remaining candidates are blocked.
             // Continue locally while retaining pending recovery evidence and the step limit.
             if(isGoalSource()&&(state==TaskState.SUCCESS||state==TaskState.FAILED)&&!toolMissing()
-                    &&pickup.ownAcquired(operation.item())+pickup.teamAcquired(operation.item())>0
                     &&physicalSteps<request.limits.maxSteps()) {
-                acquisitionContinuations++;probe.cancel();probe=facilityProbe();catalog=null;selection=null;sourcesAdded=false;index=0;activeTable=null;
+                continueCollection("CONTINUING_VERIFIED_RESOURCE_SHORTFALL");
                 // Keep the bounded source scan and all original output evidence. Fresh
                 // inventory/facility facts are rebuilt, and every native break is rechecked.
-                allowance.phase(Set.of(),Set.of());condition="CONTINUING_VERIFIED_RESOURCE_SHORTFALL";
-                pendingWrite=persistBoundary.get();return TaskState.RUNNING;
+                return TaskState.RUNNING;
             }
             if(toolMissing()&&replans<2&&physicalSteps<request.limits.maxSteps()&&(!(request instanceof CollectRequest c)||c.allowPreparation)&&(!(request instanceof RecipeCraftRequest c)||c.allowPreparation)) {
                 replans++;probe.cancel();probe=facilityProbe();catalog=null;selection=null;sourcesAdded=false;sources=null;index=0;activeTable=null;
@@ -210,6 +217,10 @@ final class PreparationTask implements Task {
         return TaskState.RUNNING;
     }
     int completedSteps(){return (int)receipts.stream().filter(r->Boolean.TRUE.equals(r.get("verified"))).count();}
+    private void continueCollection(String reason){
+        acquisitionContinuations++;probe.cancel();probe=facilityProbe();catalog=null;selection=null;sourcesAdded=false;index=0;activeTable=null;
+        allowance.phase(Set.of(),Set.of());condition=reason;pendingWrite=persistBoundary.get();
+    }
     boolean waitingForDisk(){return pendingWrite!=null&&!pendingWrite.isDone();}
     void blocked(String reason){condition=reason;}
     private int goalOwn(){return goalProofs.stream().mapToInt(p->p.ownAcquired(request.output)).sum();}
@@ -226,6 +237,7 @@ final class PreparationTask implements Task {
     }
     Map<String,Object> checkpoint() {
         var checkpoint=new LinkedHashMap<String,Object>();checkpoint.put("step",index);checkpoint.put("condition",condition);checkpoint.put("receipts",List.copyOf(receipts));checkpoint.put("mutations",allowance.evidence());
+        if(sources!=null)checkpoint.put("resourceScan",sources.summary());
         checkpoint.put("limits",Map.of("maxDepth",request.limits.maxDepth(),"maxSteps",request.limits.maxSteps(),"maxBreaks",request.limits.maxBreaks()));checkpoint.put("radius",request.radius);checkpoint.put("executionSteps",physicalSteps);checkpoint.put("stationDetour",stationDetour);
         if(request instanceof RecipeCraftRequest c)checkpoint.put("craftGoal",Map.of("recipe",c.recipe.toString(),"executions",c.executions,"requestedNew",c.count,"craftedNew",craftedGoal));
         if(recovery!=null)checkpoint.put("recovery",recovery.evidence());

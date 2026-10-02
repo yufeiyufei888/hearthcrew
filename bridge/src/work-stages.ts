@@ -1,10 +1,11 @@
 import { CrewJournal } from "./crew-journal.js";
 import { validateActionParameters, type BlockPosition, type BuildStep } from "./action-parameters.js";
+import type {WaitCondition} from "./wait-condition.js";
 
 export type Completion = {kind:"inventory";resource:string;count:number} | {kind:"blocks";steps:readonly BuildStep[]} | {kind:"position";position:BlockPosition;dimension:string};
 export interface WorkStage {
   worldId:string;botId:string;intentId:string;stageId:string;summary:string;title?:string;purpose?:"preparation"|"resource"|"delivery"|"public_build"|"exploration"|"recovery";proposalId?:string;scope:string;completion:Completion;
-  state:"continue"|"complete"|"blocked"; reason?:string; actions:string[]; verifiedDimension?:string; verifiedAtTick?:number; resolutions?:Record<string,{reason:string; verifiedAtTick:number}>;
+  state:"continue"|"complete"|"blocked"; reason?:string; condition?:WaitCondition; actions:string[]; verifiedDimension?:string; verifiedAtTick?:number; resolutions?:Record<string,{reason:string; verifiedAtTick:number}>;
 }
 export function completionSpec(raw:unknown): Completion {
   if(!raw || typeof raw!=="object")throw new Error("stage completion required: inventory(resource,count), blocks(steps), or position(position,dimension)");

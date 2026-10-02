@@ -287,7 +287,7 @@ async function main(): Promise<void> {
       }
       if (fixtureReport?.status === "PASS" && fixtureReport.oakBlockAir === true && fixtureReport.recipientOakPlanks === 4 && fixtureReport.workerWoodOrPlanks === 0 && mine && craft && transfer) {
         const actualRole = roles.find(role => role.botId === worker.botId);
-        if (actualRole?.model !== "gpt-5.6-luna" || actualRole?.reasoningEffort !== "high") throw new Error("actual role did not confirm Luna/high");
+        if (actualRole?.model !== "gpt-6-luna" || actualRole?.reasoningEffort !== "high") throw new Error("actual role did not confirm Luna/high");
         report.status = "PASS";
         report.modelActionEvidence = { act: true, evidence: "controller-submitted real MINE/CRAFT/TRANSFER receipts; controlled scene has no action driver" };
         report.final = { world: currentWorld, roles, appServer: lastStatus.appServer, fixture: fixtureReport, matchedReceipts: { mine, craft, transfer } }; break;

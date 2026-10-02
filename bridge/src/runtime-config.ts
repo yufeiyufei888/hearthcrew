@@ -16,7 +16,7 @@ export interface BridgeRuntimeConfig {
 }
 
 /** The App Server wire contract was verified against this CLI build. */
-export const PINNED_CODEX_CLI_VERSION = "0.153.3" as const;
+export const PINNED_CODEX_CLI_VERSION = "0.158.0-alpha.2.1" as const;
 
 export const ISOLATION_DISABLED_FEATURES = [
   "apps",
@@ -185,12 +185,13 @@ export async function assertGameModelCatalog(path: string, codexHome?: string): 
   // makeGameOnlyCatalog performs the complete-schema and duplicate-Luna checks.
   makeGameOnlyCatalog(parsed);
   const candidate = model as Record<string, unknown>;
-  if (candidate.slug !== "gpt-5.6-luna") throw new Error("HearthCrew model catalog must contain the pinned Luna model");
+  if (candidate.slug !== "gpt-6-luna") throw new Error("HearthCrew model catalog must contain the pinned Luna model");
   if (candidate.tool_mode !== "code_mode_only") throw new Error("HearthCrew model catalog must already use code_mode_only");
   if (candidate.shell_type !== "disabled") throw new Error("HearthCrew model catalog must already disable shell_type");
   if (!Object.prototype.hasOwnProperty.call(candidate, "apply_patch_tool_type") || candidate.apply_patch_tool_type !== null) throw new Error("HearthCrew model catalog must already disable apply_patch");
   if (candidate.supports_search_tool !== false) throw new Error("HearthCrew model catalog must already disable search");
   if (candidate.node_repl_disabled !== true) throw new Error("HearthCrew model catalog must already disable node repl");
+  if (Array.isArray(candidate.experimental_supported_tools) && candidate.experimental_supported_tools.length !== 0) throw new Error("HearthCrew model catalog must already disable experimental host tools");
   if (candidate.multi_agent_version !== null) throw new Error("HearthCrew model catalog must already disable multi-agent");
   return createHash("sha256").update(raw, "utf8").digest("hex");
 }

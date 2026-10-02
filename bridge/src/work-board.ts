@@ -24,7 +24,7 @@ export function workBoard(raw:unknown,clean:(v:unknown)=>string):WorkCard[]{
   const active=['ACCEPTED','RUNNING'].includes(a.state)&&num(epoch.bodyGeneration)!==undefined&&epoch.bodyGeneration===body.bodyGeneration&&!body.stopped&&!body.paused;
   const p=obj(a.payload),execution=obj(body.execution??a.execution),travel=obj(body.travel);
   const preparation=obj(execution.preparation),condition=typeof preparation.condition==='string'?preparation.condition.split(':')[0]:'';
-  const preparationLabels:Record<string,string>={SEARCHING_FACILITY:'寻找合法工位',SCANNING_PREPARATION_RESOURCES:'查找准备材料',APPROACHING_FACILITY:'前往工作台',RETURNING_TO_FACILITY:'返回工作台',SETTLING_AT_FACILITY:'核对工位站位',PLACING_OWN_FACILITY:'放置自有工作台',PREPARING_ITEM:'按配方制作物品',ACQUIRING_PREPARATION_MATERIAL:'连续采集材料',RECOVERING_STEP_DROPS:'接近并回收掉落',RECOVERING_PRIOR_DROPS:'核对待回收物品',REPLANNING_BROKEN_TOOL:'准备替换工具',CONTINUING_VERIFIED_RESOURCE_SHORTFALL:'继续补采实际差额',RESUMING_PREPARATION:'继续原任务'};
+  const preparationLabels:Record<string,string>={SEARCHING_FACILITY:'寻找合法工位',SCANNING_PREPARATION_RESOURCES:'查找准备材料',APPROACHING_FACILITY:'前往工作台',RETURNING_TO_FACILITY:'返回工作台',SETTLING_AT_FACILITY:'核对工位站位',PLACING_OWN_FACILITY:'放置自有工作台',PREPARING_ITEM:'按配方制作物品',ACQUIRING_PREPARATION_MATERIAL:'连续采集材料',RECOVERING_STEP_DROPS:'接近并回收掉落',RECOVERING_PRIOR_DROPS:'核对待回收物品',REPLANNING_BROKEN_TOOL:'准备替换工具',CONTINUING_NEXT_RESOURCE_BATCH:'继续下一批资源',CONTINUING_VERIFIED_RESOURCE_SHORTFALL:'继续补采实际差额',RESUMING_PREPARATION:'继续原任务'};
   let step=active?(preparationLabels[condition]??phases[travel.phase]??phases[execution.phase]??labels[p.kind]??clean(p.kind)):'正在规划下一步';
   const navigation=obj(execution.navigation),safety=obj(body.localSafety);
   const navigationLabels:Record<string,string>={SEARCHING:'寻找通路',REPLANNING:'重新规划通路',APPROACHING:'接近目标',COLLECTING:'采掘与回收'};
@@ -41,6 +41,7 @@ export function workBoard(raw:unknown,clean:(v:unknown)=>string):WorkCard[]{
   let state=body.recoveryInvalid?'reconcile_required':body.stopped?'stopped':body.paused?'paused':body.standby||role.activity==='standby'?'standby':active?'working':role.activity??'idle';
   const wait=active?'':typeof role.waitReason==='string'&&role.waitReason!=='unknown'?clean(role.waitReason):s.state==='blocked'?clean(s.reason):'';
   if(!active&&wait)step='等待条件';if(['paused','stopped','standby'].includes(state))step=state==='paused'?'已暂停':state==='stopped'?'已急停':'等待新安排';
+  if(!active&&state==='failed')step='模型规划故障，原目标保留';
   if(!active&&state==='thinking')step='正在规划下一步';
   if(!active&&suspended.length&&state==='idle')step='原工作已挂起，等待核对';
   let progress='暂无可核验数量';

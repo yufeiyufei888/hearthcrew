@@ -250,7 +250,7 @@ export class ModConnection extends EventEmitter {
     this.peerBackend = message.backend;
     this.context = { protocol: PROTOCOL, worldId: message.worldId, sessionEpoch: message.sessionEpoch };
     this.state = "ready";
-    this.write({ ...this.context, kind: "handshake_ack", requestId: message.requestId, accepted: true, controllerVersion:this.options.controllerVersion??"0.3.2", serverCapabilities: this.options.capabilities ?? { ...defaultCapabilities, executionProtocol:5,unifiedPreparation:true,resourcePreparation:true,historySeparate:true,safeAccessBudget:true,nativePickupPost:true,sharedSequenceBudget:true, maxFrameBytes: this.maxFrameBytes } });
+    this.write({ ...this.context, kind: "handshake_ack", requestId: message.requestId, accepted: true, controllerVersion:this.options.controllerVersion??"0.3.5", serverCapabilities: this.options.capabilities ?? { ...defaultCapabilities, executionProtocol:5,unifiedPreparation:true,resourcePreparation:true,historySeparate:true,safeAccessBudget:true,nativePickupPost:true,sharedSequenceBudget:true, maxFrameBytes: this.maxFrameBytes } });
     this.emit("ready", this.context);
   }
 

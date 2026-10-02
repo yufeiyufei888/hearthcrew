@@ -18,6 +18,15 @@ public abstract class NumenMinePolicyMixin extends AbstractCompanionTask<MineBlo
     protected NumenMinePolicyMixin(NumenPlayer player,MineBlockTaskRecord record){super(player,record);}
     @Shadow @Final private List<BlockPos> knownOres;
     @Shadow @Final private BlockDigger digger;
+    @Shadow @Final private java.util.Set<BlockPos> unworkable;
+    @Inject(method="prune",at=@At("HEAD"),require=1)
+    private void hearthcrew$includeVerifiedScope(CallbackInfo ci){
+        if(!NumenBackend.owns(player.getUUID()))return;
+        // Feed explicit scan positions into native pruning, before it applies the
+        // same break-cost, liquid, tool and unworkable gates as its own index hits.
+        for(var p:NumenBackend.verifiedMiningCandidates(player))if(!knownOres.contains(p)&&!unworkable.contains(p)
+            &&r.targets.contains(player.level().getBlockState(p).getBlock()))knownOres.add(p);
+    }
     @Inject(method={"runQuery","prune"},at=@At("RETURN"),require=2)
     private void hearthcrew$filterCandidates(CallbackInfo ci) {
         if(NumenBackend.owns(player.getUUID())){

@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-const LUNA_SLUG = "gpt-5.6-luna" as const;
+const LUNA_SLUG = "gpt-6-luna" as const;
 const DEBUG_ARGS = ["debug", "models", "--bundled"] as const;
 const DEBUG_TIMEOUT_MS = 30_000;
 const MAX_STDOUT_BYTES = 16 * 1024 * 1024;
@@ -110,6 +110,9 @@ export function makeGameOnlyCatalog(raw: string | unknown): GameModelCatalog {
   luna.apply_patch_tool_type = null;
   luna.supports_search_tool = false;
   luna.node_repl_disabled = true;
+  // GPT-6 metadata may advertise host-managed experimental tools. They are
+  // outside the five HearthCrew game tools and must not enter this catalog.
+  luna.experimental_supported_tools = [];
   // The game process has no delegation surface.  This must be explicit in
   // the model metadata because the code-mode host can otherwise expose the
   // built-in multi-agent functions even when the feature flag is disabled.

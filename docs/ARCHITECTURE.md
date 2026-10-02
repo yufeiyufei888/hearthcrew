@@ -4,7 +4,7 @@
 
 ## 产品与平台
 
-Windows、Minecraft 1.21.1、NeoForge 21.1.249、Java 21；首发三个独立性格和记忆的伙伴，使用独立 Codex 会话，目标配置 gpt-5.6-luna / high。fast 必须先验证接口和账户能力，界面展示服务端实际返回的设置。专用 App Server 与桌面使用的全局配置隔离。
+Windows、Minecraft 1.21.1、NeoForge 21.1.249、Java 21；首发三个独立性格和记忆的伙伴，使用独立 Codex 会话，目标配置 gpt-6-luna / high。fast 必须先验证接口和账户能力，界面展示服务端实际返回的设置。专用 App Server 与桌面使用的全局配置隔离。
 
 首发环境为单人集成服务器，与 JEI、Jade、AppleSkin、Mouse Tweaks、Neat、Xaero 小地图做实际兼容测试。公网服务器、全成就、所有内容模组和语音不在首发验收范围。
 

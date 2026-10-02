@@ -34,9 +34,13 @@ final class NavigationProgress {
     private static String fingerprint(NumenPlayer body,BlockPos p){
         var s=new StringBuilder();for(var q:BlockPos.betweenClosed(p.offset(-1,-1,-1),p.offset(1,2,1)))s.append(body.level().getBlockState(q)).append(';');return s.toString();
     }
+    boolean eligible(NumenPlayer body,BlockPos p){var prior=rejected.get(p);return prior==null||!prior.equals(fingerprint(body,p));}
     void failed(NumenPlayer body,String cause){
+        failed(body,cause,List.of());
+    }
+    void failed(NumenPlayer body,String cause,List<BlockPos> attempted){
         reason=cause;
-        for(var p:batch)rejected.put(p,fingerprint(body,p));batch=List.of();retries++;phase="REPLANNING";
+        for(var p:batch.isEmpty()?attempted:batch)rejected.put(p,fingerprint(body,p));batch=List.of();retries++;phase="REPLANNING";
         // Deliberately retain root idle/anchor: changing the candidate is not actual progress.
     }
     boolean tick(NumenPlayer body,int mutations,int completedSteps,boolean searching) {

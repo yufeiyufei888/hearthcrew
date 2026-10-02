@@ -251,7 +251,7 @@ public final class ClientUi {
             boolean knownAcknowledgement=envelope!=null&&envelope.has("ok")&&envelope.get("ok").isJsonPrimitive()&&envelope.getAsJsonPrimitive("ok").isBoolean();
             if (isTaskMessage(operation)) updateLocalState(requestId, knownAcknowledgement?(failed ? "FAILED" : "ACCEPTED"):"UNKNOWN",failed?readableError(error):"");
 
-            if(incompatible)setNotice("UI协议不兼容，请同步更新Mod与控制器至0.3.2");
+            if(incompatible)setNotice("UI协议不兼容，请同步更新Mod与控制器至0.3.5");
             else if(isTaskMessage(operation)&&!knownAcknowledgement)setNotice("命令回包格式无效，接受状态待核对；未自动重发");
             else if(!"status".equals(operation)||clientTicks>=noticeUntil)setNotice(failed ? "请求失败：" + readableError(error)
                     : "join".equals(operation) && envelope!=null && envelope.has("message") ? envelope.get("message").getAsString() : candidate.valid() ? operation + " 已收到回包" : operation + " 已收到回包，等待可用状态");

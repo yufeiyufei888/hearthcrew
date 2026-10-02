@@ -141,7 +141,7 @@ function contractPass(report: CapabilityProbeReport): boolean {
   return namesPass === true && missingPass === true && globalsPass === true
     && report.customToolCall?.count === 1 && report.customToolCall.name === "exec" && report.customToolCall.sourceMatched && report.customToolCall.outputMatched
     && report.actualObserve?.calls === 1 && report.actualObserve.completed
-    && report.model?.model === "gpt-5.6-luna" && report.model.reasoningEffort === "high" && report.model.serviceTier === "priority";
+    && report.model?.model === "gpt-6-luna" && report.model.reasoningEffort === "high" && report.model.serviceTier === "priority";
 }
 
 function runtimeConfig(options: CapabilityProbeOptions): BridgeRuntimeConfig {

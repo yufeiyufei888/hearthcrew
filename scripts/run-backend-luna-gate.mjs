@@ -48,12 +48,12 @@ try{
     await controller.setBrain({
         createThread:async(id,backend)=>{
             const thread=await app.createThread(id,backend);actualThreads.set(thread.threadId,{id,model:thread.model});
-            if(thread.model!=='gpt-5.6-luna'||actualThreads.size>(phase==='single'?1:3)){modelContract=false;throw Error('Independent Luna contract not met');}
+            if(thread.model!=='gpt-6-luna'||actualThreads.size>(phase==='single'?1:3)){modelContract=false;throw Error('Independent Luna contract not met');}
             return thread;
         },
         startTurn:async(thread,input,profile,generation)=>{
             if(finished)throw Error('Trial ended; no late model turn');
-            if(profile.model!=='gpt-5.6-luna'||profile.reasoningEffort!=='high'){modelContract=false;throw Error('Luna/high required');}
+            if(profile.model!=='gpt-6-luna'||profile.reasoningEffort!=='high'){modelContract=false;throw Error('Luna/high required');}
             if(!firstTurnAt){firstTurnAt=Date.now();run.startedAt=new Date(firstTurnAt).toISOString();await saveBudget();console.log(`REAL_LUNA_STARTED phase=${phase} remainingSeconds=${remaining.toFixed(1)}`);}
             if(Date.now()-firstTurnAt>=(remaining-3)*1000)throw Error('Bounded trial time exhausted');
             return app.startTurn(thread,input,profile,generation);

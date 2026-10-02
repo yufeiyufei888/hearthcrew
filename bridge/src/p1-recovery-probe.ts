@@ -684,8 +684,8 @@ async function main(): Promise<void> {
             throw new Error(`terminal action ledger is incomplete or unresolved; mine=${mineReceipts.length}, craft=${craftReceipts.length}, transfer=${transferReceipts.length}, terminalIds=${terminalIds.join(",")}, unresolved=${unresolved.join(",")}`);
         const finalRoles = final?.roles ?? [];
         const role = finalRoles.find(candidate => candidate.botId === workerId);
-        if (role?.model !== "gpt-5.6-luna" || role?.reasoningEffort !== "high")
-            throw new Error("recovered role did not confirm gpt-5.6-luna/high");
+        if (role?.model !== "gpt-6-luna" || role?.reasoningEffort !== "high")
+            throw new Error("recovered role did not confirm gpt-6-luna/high");
         if (role.intentId !== command.intentId || terminalEvents.filter(row => row.type === "owner.command").length !== 1)
             throw new Error("recovery did not retain the original single owner goal");
         if (Array.isArray(final.restoration) && final.restoration.length)

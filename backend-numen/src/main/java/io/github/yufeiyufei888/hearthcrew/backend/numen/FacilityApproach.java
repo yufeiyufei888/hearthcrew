@@ -17,12 +17,16 @@ final class FacilityApproach implements Task {
    if(attempts>=3){reason="FACILITY_STANCES_BLOCKED";return TaskState.FAILED;}
    var stances=InteractionStances.around(body,target).stream().filter(s->!failed.contains(s.cell())).toList();
    if(stances.isEmpty()){reason="FACILITY_NO_VISIBLE_SUPPORTED_STANCE";return TaskState.FAILED;}
-   selected=stances.getFirst().cell();attempts++;settling=0;
-   nav=PlayerNav.toGoal(body,()->NavGoal.exact(selected),1.0,()->FacilityAccess.usableNow(body,target),PlayerNav.ContextProvider.DEFAULT);
+   attempts++;settling=0;
+   // Search the same supported, visible stance set as the read-only facility
+   // probe. Choosing the nearest stance first can select the blocked side.
+   var goals=stances.stream().map(s->NavGoal.exact(s.cell())).toList();
+   nav=PlayerNav.toGoal(body,()->NavGoal.composite(goals),1.0,()->FacilityAccess.usableNow(body,target),PlayerNav.ContextProvider.DEFAULT);
   }
   var state=nav.tick();
   if(state==PlayerNav.Status.ARRIVED&&!FacilityAccess.usableNow(body,target)&&settling++<20)return TaskState.RUNNING;
-  if(state==PlayerNav.Status.FAILED||state==PlayerNav.Status.ARRIVED){reason=state==PlayerNav.Status.FAILED?nav.failReason():"FACILITY_ARRIVAL_NOT_USABLE";failed.add(selected);stop(body,StopReason.REPLACED);}
+  if(state==PlayerNav.Status.FAILED){reason=nav.failReason();stop(body,StopReason.REPLACED);return TaskState.FAILED;}
+  if(state==PlayerNav.Status.ARRIVED){reason="FACILITY_ARRIVAL_NOT_USABLE";failed.add(body.blockPosition().immutable());stop(body,StopReason.REPLACED);}
   return TaskState.RUNNING;
  }
  public void stop(NumenPlayer body,StopReason why){if(nav!=null)nav.stop();nav=null;}

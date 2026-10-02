@@ -14,11 +14,11 @@ async function testRuntime(prefix: string) {
   const modelCatalogDirectory = join(codexHome, "model-catalog");
   const modelCatalogJson = join(modelCatalogDirectory, "game-only.json");
   await mkdir(modelCatalogDirectory, { recursive: true });
-  await writeFile(modelCatalogJson, JSON.stringify({ models: [{ slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", description: "test", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "high", description: "high" }], shell_type: "disabled", visibility: "list", supported_in_api: true, priority: 8, model_messages: { instructions_template: "test" }, apply_patch_tool_type: null, web_search_tool_type: "text_and_image", truncation_policy: { mode: "tokens" }, context_window: 272000, max_context_window: 872000, comp_hash: "test", effective_context_window_percent: 95, input_modalities: ["text"], supports_search_tool: false, use_responses_lite: true, node_repl_disabled: true, tool_mode: "code_mode_only", multi_agent_version: null, base_instructions: "test" }] }), "utf8");
+  await writeFile(modelCatalogJson, JSON.stringify({ models: [{ slug: "gpt-6-luna", display_name: "GPT-6-Luna", description: "test", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "high", description: "high" }], shell_type: "disabled", visibility: "list", supported_in_api: true, priority: 8, model_messages: { instructions_template: "test" }, apply_patch_tool_type: null, web_search_tool_type: "text_and_image", truncation_policy: { mode: "tokens" }, context_window: 272000, max_context_window: 872000, comp_hash: "test", effective_context_window_percent: 95, input_modalities: ["text"], supports_search_tool: false, use_responses_lite: true, node_repl_disabled: true, tool_mode: "code_mode_only", multi_agent_version: null, base_instructions: "test" }] }), "utf8");
   return { codexHome, workspace: join(root, "workspace"), modelCatalogJson };
 }
 
-function fakeChild(completionBeforeResponse = false, lateToolCall = false, earlyToolCall = false, autoComplete = true, completionStatus: "completed" | "failed" = "completed", threadServiceTier: string | null = null, fastCatalog = false) {
+function fakeChild(completionBeforeResponse = false, lateToolCall = false, earlyToolCall = false, autoComplete = true, completionStatus: "completed" | "failed" = "completed", threadServiceTier: string | null = null, fastCatalog = false, threadModel = "gpt-6-luna", threadEffort = "high") {
   const child = new EventEmitter() as any;
   child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => { child.emit("exit", 0, null); return true; };
   let emitServer: (message: unknown) => void = () => undefined;
@@ -28,10 +28,10 @@ function fakeChild(completionBeforeResponse = false, lateToolCall = false, early
     emitServer = emit;
     if (request.method === "initialize") emit({ jsonrpc: "2.0", id: request.id, result: { codexHome: "C:\\isolated", platformFamily: "windows", platformOs: "windows", userAgent: "fake" } });
     if (request.method === "model/list") {
-      const result = fastCatalog ? { data: [{ id: "gpt-5.6-luna", additionalSpeedTiers: ["fast"], serviceTiers: [{ id: "priority", name: "Fast" }] }] } : { data: [] };
+      const result = fastCatalog ? { data: [{ id: "gpt-6-luna", additionalSpeedTiers: ["fast"], serviceTiers: [{ id: "priority", name: "Fast" }] }] } : { data: [] };
       emit({ jsonrpc: "2.0", id: request.id, result });
     }
-    if (request.method === "thread/start") emit({ jsonrpc: "2.0", id: request.id, result: { thread: { id: "thread-1" }, model: "gpt-5.6-luna", reasoningEffort: "high", serviceTier: threadServiceTier } });
+    if (request.method === "thread/start") emit({ jsonrpc: "2.0", id: request.id, result: { thread: { id: "thread-1" }, model: threadModel, reasoningEffort: threadEffort, serviceTier: threadServiceTier } });
     if (request.method === "turn/start") { const completed = { jsonrpc: "2.0", method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: completionStatus, ...(completionStatus === "failed" ? { error: { message: "controlled failure" } } : {}) } } }; if (completionBeforeResponse) emit(completed); if (earlyToolCall) emit({ jsonrpc: "2.0", id: 77, method: "item/tool/call", params: { threadId: "thread-1", turnId: "turn-1", callId: "early", tool: "act", arguments: { bodyGeneration: 17 } } }); emit({ jsonrpc: "2.0", id: request.id, result: { turn: { id: "turn-1" } } }); if (!completionBeforeResponse && autoComplete) setImmediate(() => emit(completed)); if (lateToolCall) setTimeout(() => emit({ jsonrpc: "2.0", id: 99, method: "item/tool/call", params: { threadId: "thread-1", turnId: "turn-1", callId: "late", tool: "act", arguments: { bodyGeneration: 1 } } }), 20); }
     if (request.method === "turn/interrupt") emit({ jsonrpc: "2.0", id: request.id, result: {} });
   });
@@ -51,7 +51,7 @@ test("App Server client initializes, isolates tools, creates three-profile threa
   const initialized = await client.start();
   assert.equal((initialized as any).platformOs, "windows");
   const thread = await client.createThread("coordinator");
-  assert.equal(thread.model, "gpt-5.6-luna");
+  assert.equal(thread.model, "gpt-6-luna");
   assert.equal(thread.effectiveServiceTier, null);
   const handle = await client.startTurn(thread, "观察附近", thread.profile);
   assert.equal(handle.turnId, "turn-1");
@@ -59,6 +59,51 @@ test("App Server client initializes, isolates tools, creates three-profile threa
   assert.equal(client.diagnostics().gameOnlyTools, "pending");
   assert.equal(client.diagnostics().productionGameplay, "unsupported");
   await client.stop();
+});
+
+test("all three companions request GPT-6 Luna High on independent threads and turns", async () => {
+  const requests: any[] = [];
+  let nextThread = 0;
+  // This fixture assigns a unique thread to each configured role.
+  const client = new AppServerClient({ runtime: await testRuntime("three-gpt6"), detectVersion: () => PINNED_CODEX_CLI_VERSION,
+    spawnProcess: () => {
+      const isolated = new EventEmitter() as any;
+      isolated.stdin = new PassThrough(); isolated.stdout = new PassThrough(); isolated.stderr = new PassThrough();
+      isolated.kill = () => { isolated.emit("exit", 0, null); return true; };
+      isolated.stdin.on("data", (chunk: Buffer) => {
+        const request = JSON.parse(chunk.toString("utf8")); requests.push(request);
+        const emit = (result: unknown) => isolated.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: request.id, result })}\n`);
+        if (request.method === "initialize") emit({});
+        if (request.method === "thread/start") emit({ thread: { id: `thread-${++nextThread}` }, model: "gpt-6-luna", reasoningEffort: "high", serviceTier: null });
+        if (request.method === "turn/start") {
+          const turnId = `turn-${request.params.threadId}`;
+          emit({ turn: { id: turnId } });
+          setImmediate(() => isolated.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: request.params.threadId, turn: { id: turnId, status: "completed" } } })}\n`));
+        }
+      });
+      return isolated;
+    }, requestTimeoutMs: 1000 });
+  await client.start();
+  const threads = await Promise.all(AGENT_PROFILES.map(profile => client.createThread(profile.id)));
+  assert.equal(new Set(threads.map(thread => thread.threadId)).size, 3);
+  for (const thread of threads) { const handle = await client.startTurn(thread, "inspect", thread.profile); await handle.completion; }
+  const starts = requests.filter(request => request.method === "thread/start");
+  const turns = requests.filter(request => request.method === "turn/start");
+  assert.equal(starts.length, 3);
+  assert.equal(turns.length, 3);
+  for (const start of starts) { assert.equal(start.params.model, "gpt-6-luna"); assert.equal(start.params.config.model_reasoning_effort, "high"); }
+  for (const turn of turns) { assert.equal(turn.params.model, "gpt-6-luna"); assert.equal(turn.params.effort, "high"); }
+  await client.stop();
+});
+
+test("thread creation rejects a model or reasoning-effort downgrade", async () => {
+  for (const [model, effort] of [["gpt-5.6-luna", "high"], ["gpt-6-luna", "medium"]]) {
+    const client = new AppServerClient({ runtime: await testRuntime(`downgrade-${effort}-${model}`), profiles: [AGENT_PROFILES[0]],
+      detectVersion: () => PINNED_CODEX_CLI_VERSION, spawnProcess: () => fakeChild(false, false, false, true, "completed", null, false, model, effort), requestTimeoutMs: 1000 });
+    await client.start();
+    await assert.rejects(client.createThread("coordinator"), /unexpected model|reasoning effort high/);
+    await client.stop();
+  }
 });
 
 test("fast service tier stays disabled unless the App Server echoes fast", async () => {
@@ -278,7 +323,7 @@ test("dedicated workspace rejects inherited project or AGENTS markers", async ()
 test("game-only model catalog validation fails closed on unsafe metadata", async () => {
   const root = await mkdtemp(join(tmpdir(), "hearthcrew-catalog-"));
   const path = join(root, "catalog.json");
-  const safe = { models: [{ slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", description: "test", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "high", description: "high" }], shell_type: "disabled", visibility: "list", supported_in_api: true, priority: 8, model_messages: { instructions_template: "test" }, apply_patch_tool_type: null, web_search_tool_type: "text_and_image", truncation_policy: { mode: "tokens" }, context_window: 272000, max_context_window: 872000, comp_hash: "test", effective_context_window_percent: 95, input_modalities: ["text"], supports_search_tool: false, use_responses_lite: true, node_repl_disabled: true, tool_mode: "code_mode_only", multi_agent_version: null, base_instructions: "test" }] };
+  const safe = { models: [{ slug: "gpt-6-luna", display_name: "GPT-6-Luna", description: "test", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "high", description: "high" }], shell_type: "disabled", visibility: "list", supported_in_api: true, priority: 8, model_messages: { instructions_template: "test" }, apply_patch_tool_type: null, web_search_tool_type: "text_and_image", truncation_policy: { mode: "tokens" }, context_window: 272000, max_context_window: 872000, comp_hash: "test", effective_context_window_percent: 95, input_modalities: ["text"], supports_search_tool: false, use_responses_lite: true, node_repl_disabled: true, tool_mode: "code_mode_only", multi_agent_version: null, base_instructions: "test" }] };
   await writeFile(path, JSON.stringify(safe), "utf8");
   assert.equal((await assertGameModelCatalog(path)).length, 64);
   await assert.rejects(assertGameModelCatalog(path, join(root, "dedicated")), /under the dedicated codexHome\/model-catalog/);

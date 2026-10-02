@@ -15,7 +15,7 @@ final class BackendEventStream {
     private long cursor;
     private final Map<UUID,Long> incarnations=new HashMap<>();
     private final Map<UUID,Facts> facts=new HashMap<>();
-    private record Facts(long generation,String inventory,String danger,String processing,long control,long scan,boolean active,long idleSince,boolean idleAnnounced,long sampled) {}
+    private record Facts(long generation,String inventory,String danger,String processing,long control,long scan,String resources,String terrainOrigin,long terrain,boolean active,long idleSince,boolean idleAnnounced,long sampled) {}
     BackendEventStream(MinecraftServer server,String namespace){
         this.server=server;this.namespace=namespace;
         // Saved results remain queryable. They are not new work on reconnect.
@@ -53,6 +53,8 @@ final class BackendEventStream {
         String inventory=counts.toString();String danger=(int)p.getHealth()+":"+p.isOnFire()+":"+p.isUnderWater()+":"+b.diagnostics().get("reaction");
         String processing=JSON.toJson(b.execution().getOrDefault("processingOrders",List.of()));
         long revision=CrewWorldData.get(server).controlRevision(id),scan=NearbyObservation.revision(p),gen=state.identity().generation();
+        String resources=NearbyObservation.resourceFacts(p);
+        String terrainOrigin=NearbyObservation.terrainOrigin(p);long terrain=NearbyObservation.terrainFacts(p);
         boolean active=state.state().equals("RUNNING");long idleSince=active||previous==null||previous.active()||previous.generation()!=gen?tick:previous.idleSince();
         boolean announced=!active&&previous!=null&&!previous.active()&&previous.generation()==gen&&previous.idleAnnounced();var reasons=new ArrayList<String>();
         if(previous!=null&&previous.generation()==gen){
@@ -60,7 +62,8 @@ final class BackendEventStream {
             if(!previous.danger().equals(danger))reasons.add("danger_changed");
             if(!previous.processing().equals(processing))reasons.add("processing_changed");
             if(previous.control()!=revision)reasons.add("mode_changed");
-            if(scan>previous.scan())reasons.add("scan_ready");
+            if(scan>previous.scan()&&(previous.scan()==0||!resources.equals(previous.resources())))reasons.add("scan_ready");
+            if(scan>previous.scan()&&previous.terrainOrigin().equals(terrainOrigin)&&previous.terrain()!=terrain)reasons.add("environment_changed");
         }else if(scan>0)reasons.add("scan_ready");
         var control=BackendWorld.roster(server).control(id);
         if(!active&&!announced&&!control.paused()&&!control.stopped()&&!CrewWorldData.get(server).standby(id)&&tick-idleSince>=100){reasons.add("body_idle");announced=true;}
@@ -68,6 +71,6 @@ final class BackendEventStream {
             var body=JSON.toJsonTree(Map.of("botId",id.toString(),"bodyGeneration",gen,"gameTick",tick,"reasons",reasons,"localSafety",b.diagnostics())).getAsJsonObject();
             if(!sink.accept(namespace+":wake:"+id+":"+gen+":"+tick,"body.wakeup",tick,body))return false;
         }
-        facts.put(id,new Facts(gen,inventory,danger,processing,revision,scan,active,idleSince,announced,tick));return true;
+        facts.put(id,new Facts(gen,inventory,danger,processing,revision,scan,resources,terrainOrigin,terrain,active,idleSince,announced,tick));return true;
     }
 }

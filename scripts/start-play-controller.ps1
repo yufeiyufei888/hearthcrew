@@ -65,6 +65,10 @@ function Wait-AndPublishPairing([int]$ExpectedPid) {
 
 $node = Resolve-Executable 'node.exe' 'Node.js 24'
 $codex = Resolve-Executable $CodexCommand 'Codex CLI'
+$codeModeHost = Join-Path (Split-Path -Parent $codex) 'codex-code-mode-host.exe'
+if (-not (Test-Path -LiteralPath $codeModeHost -PathType Leaf)) {
+    throw "Incomplete HearthCrew Codex runtime: missing $codeModeHost. Install the complete pinned platform package; a standalone codex.exe cannot execute game tools."
+}
 if ($Build) {
     $npm = Resolve-Executable 'npm.cmd' 'npm'
     Push-Location -LiteralPath $bridgeRoot

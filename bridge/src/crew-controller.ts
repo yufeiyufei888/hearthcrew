@@ -3,7 +3,7 @@ import {projectBackendCapabilities} from "./backend-capabilities.js";
 import {ReportingPolicy, reportDecision, publicFacilityKey, REPORT_RULES, STAGE_PURPOSES} from "./reporting-policy.js";
 import {inventoryQuery, inventoryVersion, teamInventory, resourceSummary, relevantItems, materialConditionKey} from "./team-resources.js";
 import { planningContext, contextPage } from "./planning-context.js";
-import { parseWait, waitingEventRelevant, type WaitCondition } from "./wait-condition.js";
+import { parseWait, waitingEventRelevant, recheckableWait, waitIdentity, WAIT_RECHECK_TICKS, type WaitCondition } from "./wait-condition.js";
 import { assessSupply, CooperationQueue, type Cooperation } from "./cooperation.js";
 import { ActionEvidence } from "./action-evidence.js";
 import { WorkStages, completionSpec, stageSatisfied } from "./work-stages.js";
@@ -269,7 +269,7 @@ export class CrewController {
   }
   diagnosticSnapshot():Record<string,unknown> {
     const age=this.lastGameHealth ? Date.now()-Date.parse(this.lastGameHealth.atUtc):undefined;
-    return {atUtc:new Date().toISOString(),version:"0.3.2",worldId:this.view?.worldId,connection:this.connection?.connectionState??"disconnected",gameEvidence:age!==undefined&&age<15000?"recent_game_tick":"状态待确认：无近期游戏时钟；不能据此判为暂停",lastGameHealth:this.lastGameHealth,roles:[...this.roles.values()].map(r=>({botId:r.botId,threadId:r.thread.threadId,turnId:r.run?.handle?.turnId,status:r.status,action:r.activeAction,suspendedActionIds:[...r.suspendedActionIds],dispatching:r.dispatching,teamTaskState:r.teamTaskState,modelPhase:r.run ? (r.run.handle ? "running" : "starting") : r.awaitingTurn ? "awaiting_interrupt" : r.recoveryTimer ? "retry_delay" : "not_started",turnAgeMs:r.run?.startedAt===undefined?undefined:Date.now()-r.run.startedAt,promptBytes:r.run?.promptBytes,recoveryAttempts:r.recoveryAttempts??0,recoveryExhausted:r.recoveryExhausted??false,pending:[...r.pending.keys()],waiting:r.waitReason,controlRevision:r.controlRevision,standby:r.standby,origin:r.origin}))};
+    return {atUtc:new Date().toISOString(),version:"0.3.5",worldId:this.view?.worldId,connection:this.connection?.connectionState??"disconnected",gameEvidence:age!==undefined&&age<15000?"recent_game_tick":"状态待确认：无近期游戏时钟；不能据此判为暂停",lastGameHealth:this.lastGameHealth,roles:[...this.roles.values()].map(r=>({botId:r.botId,threadId:r.thread.threadId,turnId:r.run?.handle?.turnId,status:r.status,action:r.activeAction,suspendedActionIds:[...r.suspendedActionIds],dispatching:r.dispatching,teamTaskState:r.teamTaskState,modelPhase:r.run ? (r.run.handle ? "running" : "starting") : r.awaitingTurn ? "awaiting_interrupt" : r.recoveryTimer ? "retry_delay" : "not_started",turnAgeMs:r.run?.startedAt===undefined?undefined:Date.now()-r.run.startedAt,promptBytes:r.run?.promptBytes,recoveryAttempts:r.recoveryAttempts??0,recoveryExhausted:r.recoveryExhausted??false,pending:[...r.pending.keys()],waiting:r.waitReason,controlRevision:r.controlRevision,standby:r.standby,origin:r.origin}))};
   }
   private async applyRecoveryRequests(connection:ModConnection,observed:WorldView):Promise<void> {
     for(const request of this.recoveryRequests) {
@@ -290,6 +290,9 @@ export class CrewController {
   private readonly alternativeUsed = new Set<string>();
   private readonly recoveryEvaluations = new Map<string, number>();
   private readonly goalWaits = new Map<string, { intentId: string; reason: string; condition?:WaitCondition; wakeConditions?: string[] }>();
+  private readonly waitChecks = new Map<string,{tick:number;attempts:number;signal:string;conditionKey?:string}>();
+  private readonly waitClocks = new Map<string,{tick:number;paused:boolean}>();
+  private checkingWaits=false;
   private readonly autonomyModes = new Map<string, AutonomousMode>();
   private readonly autonomyGroups = new Map<string, string>();
   private readonly restoreFailures = new Map<string, string>();
@@ -321,7 +324,8 @@ export class CrewController {
   }
   private actionContext(role: Role, kind: string, parameters: unknown, observed: WorldView): string {
     const body = observed.companions.find(b => b.botId === role.botId);
-    return JSON.stringify(canonical({ kind, parameters, position: body ? {x:Math.floor(body.position.x),y:Math.floor(body.position.y),z:Math.floor(body.position.z)} : undefined, inventory: body?.inventory.map(raw=>{const v=recordValue(raw);return {item:v?.item,count:v?.count};}).sort((a,b)=>String(a.item).localeCompare(String(b.item))), targets: observed.targetInspections?.map(raw=>{const t=recordValue(raw);return {position:t?.position,block:t?.block,protection:t?.protection,fluid:t?.fluid,support:t?.supportBelow,path:t?.path};}) }));
+    const processing=["PROCESS","COLLECT_PROCESS"].includes(kind)?recordValue((body as unknown as Record<string,unknown>|undefined)?.execution)?.processingOrders:undefined;
+    return JSON.stringify(canonical({ kind, parameters, processing, position: body ? {x:Math.floor(body.position.x),y:Math.floor(body.position.y),z:Math.floor(body.position.z)} : undefined, inventory: body?.inventory.map(raw=>{const v=recordValue(raw);return {item:v?.item,count:v?.count};}).sort((a,b)=>String(a.item).localeCompare(String(b.item))), targets: observed.targetInspections?.map(raw=>{const t=recordValue(raw);return {position:t?.position,block:t?.block,protection:t?.protection,fluid:t?.fluid,support:t?.supportBelow,path:t?.path};}) }));
   }
   private clearRecovery(role: Role): void {
     if (role.recoveryTimer) clearTimeout(role.recoveryTimer);
@@ -370,6 +374,7 @@ export class CrewController {
       }
     }
     for (const row of this.journal.rows()) {
+      if(["wait.checked","wait.frozen"].includes(row.type)&&typeof row.data.key==="string")this.waitChecks.set(row.data.key,{tick:Number(row.data.tick),attempts:Number(row.data.attempts),signal:String(row.data.signal),conditionKey:typeof row.data.conditionKey==="string"?row.data.conditionKey:undefined});
       if(["resource.condition_changed","resource.condition_baseline","cooperation.notified"].includes(row.type)&&typeof row.data.key==="string")this.materialSignals.set(row.data.key,String(row.data.signal));
       if(row.type==="resource.condition_changed"&&this.goalWaits.get(`${row.worldId}:${row.data.botId}`)?.intentId===row.data.intentId)this.goalWaits.delete(`${row.worldId}:${row.data.botId}`);
       if(row.type==="task.region_failure"&&typeof row.data.key==="string"&&typeof row.data.count==="number")this.taskRegionFailures.set(row.data.key,row.data.count);
@@ -574,6 +579,27 @@ export class CrewController {
       if (role.standby || (role.origin === "autonomous" && !role.autonomyEnabled)) { role.status = "idle"; continue; }
       const revision = role.revision;
       try {
+        if(observed.modVersion==="0.3.5"&&waiting?.intentId===role.intentId&&!activeAction(body.action)&&!role.suspendedActionIds.size&&waiting.condition?.kind!=="unknown_effect"){
+          const migrated=this.journal.role(role.worldId,role.botId,r=>r.type==="recovery.wait_035"&&r.data.intentId===role.intentId,1);
+          const affected=this.journal.role(role.worldId,role.botId,r=>r.version==="0.3.4"&&["goal.state","role.no_plan"].includes(r.type),1);
+          if(!migrated.length&&affected.length){
+            await this.journal.append("recovery.wait_035",role.worldId,{botId:role.botId,intentId:role.intentId,evidenceSequence:affected[0]!.sequence});
+            await this.journal.append("goal.state",role.worldId,{botId:role.botId,intentId:role.intentId,state:"continue",reason:"0.3.5 re-evaluate verified candidates and exact feet routes; never replay effects"});
+            const key=`${role.worldId}:${role.botId}:${role.intentId}`,check={tick:observed.gameTick,attempts:0,signal:""};
+            await this.journal.append("wait.frozen",role.worldId,{botId:role.botId,intentId:role.intentId,key,...check});this.waitChecks.set(key,check);
+            this.goalWaits.delete(`${role.worldId}:${role.botId}`);role.waitReason=undefined;role.noWorkCorrections=0;role.rejectionRecoveryUsed=false;role.preparationGrace=false;
+            role.pending.set("execution_reassessment",{message:"0.3.5已修复已验证资源候选、三维移动及树形边界。保留原目标和历史，核对当前库存、工具和位置，选择一个当前可执行动作；已成功或未知修改不能重放。局部资源不可行可选择另一项有实际收益的准备、加工或建设工作。"});
+          }
+        }
+        if(waiting?.intentId===role.intentId&&!activeAction(body.action)&&!role.suspendedActionIds.size&&waiting.condition?.kind!=="unknown_effect") {
+          const migrated=this.journal.role(role.worldId,role.botId,r=>r.type==="recovery.wait_034"&&r.data.intentId===role.intentId,1);
+          if(!migrated.length&&this.journal.role(role.worldId,role.botId,r=>r.version==="0.3.3"&&["goal.state","role.no_plan"].includes(r.type),1).length) {
+            await this.journal.append("recovery.wait_034",role.worldId,{botId:role.botId,intentId:role.intentId,previousWait:waiting.reason});
+            await this.journal.append("goal.state",role.worldId,{botId:role.botId,intentId:role.intentId,state:"continue",reason:"0.3.4 reassess resource and dependency waits; never replay effects"});
+            this.goalWaits.delete(`${role.worldId}:${role.botId}`);role.waitReason=undefined;role.noWorkCorrections=0;role.rejectionRecoveryUsed=false;
+            role.pending.set("execution_reassessment",{message:"等待和资源批次已修复。保留原目标，读取当前库存、工位与已确认结果，重新选择可执行方案或不同入口。不可重放成功或未知修改。"});
+          }
+        }
         if(connection.executionBackend?.navigationProgressVersion===1&&!activeAction(body.action)&&waiting?.condition?.kind!=="unknown_effect"){
           const done=this.journal.role(role.worldId,role.botId,r=>r.type==="recovery.execution_031",1);
           const affected031=this.journal.role(role.worldId,role.botId,r=>r.version==="0.3.0"&&(r.type==="role.no_plan"||r.type==="tool.rejected"||r.type==="goal.state"&&r.data.state==="blocked"||r.type==="game.event"&&r.data.event==="action.terminal"),1);
@@ -647,6 +673,12 @@ export class CrewController {
   private modelWaitDetail(role: Role): string | undefined {
     if (role.run && !role.activeAction) return `${role.run.handle ? "Luna 正在思考" : "正在启动 Luna 回合"} · ${Math.max(0,Math.floor((Date.now()-(role.run.startedAt??Date.now()))/1000))} 秒`;
     if (!role.activeAction && role.suspendedActionIds.size) return `等待核对 ${role.suspendedActionIds.size} 项暂停动作的执行权`;
+    const wait=this.goalWaits.get(`${role.worldId}:${role.botId}`)?.condition;
+    if(role.waitReason&&recheckableWait(wait)){
+      const check=this.waitChecks.get(`${role.worldId}:${role.botId}:${role.intentId}`);
+      const seconds=Math.ceil(Math.max(0,WAIT_RECHECK_TICKS-((this.view?.gameTick??0)-(check?.tick??wait!.sinceTick)))/20);
+      return `${role.waitReason} · ${check&&check.attempts>=2?(wait!.kind==="model_recovery"?"模型规划故障；真实条件变化或新任务可恢复":"当前条件下方案已耗尽；条件变化或新任务可恢复"):`约${seconds}秒游戏时间后复核`}`;
+    }
     return role.waitReason;
   }
   private stageGoal(role:Role):string|undefined {
@@ -669,7 +701,8 @@ export class CrewController {
     const requestedBodies = observed.companions.filter(b => !botId || b.botId === botId);
     const busy = (body: BodyView): boolean => {
       const role = [...this.roles.values()].find(r => r.botId === body.botId && r.worldId === observed.worldId);
-      return Boolean(activeAction(body.action) || role?.run?.valid || role?.suspendedActionIds.size || role?.intentId && this.stages.current(role.worldId,role.botId,role.intentId)?.state === "continue");
+      const blocked=role?.waitReason&&this.goalWaits.get(`${role.worldId}:${role.botId}`)?.condition?.kind!=="unknown_effect";
+      return Boolean(activeAction(body.action) || role?.run?.valid || role?.suspendedActionIds.size || role?.intentId && !blocked && role.status!=="failed" && this.stages.current(role.worldId,role.botId,role.intentId)?.state === "continue");
     };
     if (!skipDeferral && !this.urgentRequest(message) && requestedBodies.some(busy)) {
       const assignments: unknown[] = [];
@@ -1053,6 +1086,20 @@ export class CrewController {
           const validated = validateActionParameters(args.kind, args.parameters ?? {});
           if(run.connection.executionBackend?.id==="numen"&&validated.kind==="COLLECT_RESOURCE"&&validated.parameters.position!==undefined)throw new Error("COLLECT_RESOURCE.position is unsupported: scope is centered on the body at start; omit position");
           if(!(this.executionCapabilities().self as readonly string[]).includes(validated.kind))throw new Error("BACKEND_ACTION_UNAVAILABLE: 当前后端没有接通该动作，请使用本回合能力列表");
+          if(run.connection.executionBackend?.id==="numen"&&validated.kind==="COLLECT_PROCESS"){
+            const fresh=await run.connection.request<WorldView>("status",{},{timeoutMs:5000});
+            const body=fresh.companions.find(b=>b.botId===role.botId);
+            if(!run.valid||run.connection!==this.connection||role.run!==run||fresh.worldId!==role.worldId||body?.bodyGeneration!==run.generation)throw Error("body changed during processing preflight");
+            this.view=fresh;run.lastObserved=fresh;
+            const execution=recordValue((body as unknown as Record<string,unknown>).execution);
+            const orders=Array.isArray(execution?.processingOrders)?execution.processingOrders.map(recordValue):[];
+            const order=orders.find(o=>o&&JSON.stringify(canonical(o.position))===JSON.stringify(canonical(validated.parameters.position)));
+            if(order?.state==="PROCESSING"){
+              run.goalState="blocked";run.goalReason="原版炉子仍在加工，产物尚未收取";
+              run.goalCondition=parseWait({kind:"processing",position:order.position,taskId:String(order.orderId)},run.goalReason,fresh.gameTick,0);
+              result={accepted:false,deferred:true,condition:run.goalCondition,newOutputAcquired:0,order,next:"可处理其他独立工作；OUTPUT_READY后再收取。不重复投料，不把等待算作失败。"};break;
+            }
+          }
           const targetPositions=["MINE","PLACE","EXCAVATE"].includes(validated.kind)?[validated.parameters.position!]:validated.kind==="BUILD"?validated.parameters.steps!.map(s=>s.position):[];
           if(targetPositions.length){
             const checked=await run.connection.request<WorldView>("observe",{botId:role.botId,radius:32,targets:targetPositions},{timeoutMs:10000});
@@ -1204,7 +1251,7 @@ export class CrewController {
               run.goalState="blocked";run.goalReason=reason;run.goalCondition=condition;
               role.noWorkCorrections=0;
             }
-            await this.stages.save({...stage,state:state as "continue"|"complete"|"blocked",...(state==="complete"?{verifiedAtTick:run.lastObserved.gameTick,verifiedDimension:run.lastObserved.companions.find(b=>b.botId===role.botId)?.dimension}:{}),...(args.reason?{reason:text(args.reason,"reason",1000)}:{})});
+            await this.stages.save({...stage,state:state as "continue"|"complete"|"blocked",...(state==="blocked"?{condition:run.goalCondition}:{}),...(state==="complete"?{verifiedAtTick:run.lastObserved.gameTick,verifiedDimension:run.lastObserved.companions.find(b=>b.botId===role.botId)?.dimension}:{}),...(args.reason?{reason:text(args.reason,"reason",1000)}:{})});
             result=this.stages.get(role.worldId,role.botId,run.intentId,stageId);break;
           }
           const requestedState = args.operation === "goal_state" ? args.state : undefined;
@@ -1802,15 +1849,113 @@ export class CrewController {
       const condition=this.goalWaits.get(`${role.worldId}:${role.botId}`)?.condition;
       if(!condition?.peerId||!condition.resource||!condition.count)continue;
       const key=`${role.worldId}:${role.botId}:${role.intentId}:${condition.peerId}:${condition.resource}:${condition.count}`;
-      const signal=materialConditionKey(world,condition.peerId,condition.resource,condition.count),prior=this.materialSignals.get(key);
+      const producer=[...this.roles.values()].find(r=>r.worldId===world.worldId&&r.botId===condition.peerId);
+      const signal=materialConditionKey(world,condition.peerId,condition.resource,condition.count)+(producer?.waitReason||producer?.status==="failed"?":producer_blocked":""),prior=this.materialSignals.get(key);
       this.materialSignals.set(key,signal);
       if(prior===signal)continue;
-      if(prior===undefined&&!signal.endsWith(":available")){
+      if(prior===undefined&&!signal.endsWith(":available")&&!signal.endsWith(":producer_blocked")){
         await this.journal.append("resource.condition_baseline",role.worldId,{botId:role.botId,key,signal,gameTick:world.gameTick});continue;
       }
       await this.journal.append("resource.condition_changed",role.worldId,{botId:role.botId,intentId:role.intentId,key,signal,gameTick:world.gameTick});
       role.waitReason=undefined;this.goalWaits.delete(`${role.worldId}:${role.botId}`);this.trigger(role,"resource_condition_changed",{condition,signal});
     }
+  }
+  private async recheckWaits(connection:ModConnection,worldId:string,tick:number,bodies?:BodyView[]):Promise<void>{
+    if(this.checkingWaits||!Number.isFinite(tick))return;
+    // Freeze this lease while the local body is paused, including the sample
+    // that crosses a pause boundary. Never spend pause time on model recovery.
+    for(const role of this.roles.values()){
+      const wait=this.goalWaits.get(`${worldId}:${role.botId}`);
+      if(role.worldId!==worldId||!role.intentId||!wait?.condition)continue;
+      const key=`${worldId}:${role.botId}:${role.intentId}`,prior=this.waitClocks.get(key);
+      const body=(bodies??this.view?.companions??[]).find(b=>b.botId===role.botId);
+      const paused=!!body?.paused||role.status==="paused";
+      if(prior&&tick>prior.tick&&(paused||prior.paused)){
+        const old=this.waitChecks.get(key)??{tick:wait.condition.sinceTick,attempts:0,signal:""};
+        const check={...old,tick:old.tick+tick-prior.tick};
+        await this.journal.append("wait.frozen",worldId,{botId:role.botId,intentId:role.intentId,key,...check});this.waitChecks.set(key,check);
+      }
+      this.waitClocks.set(key,{tick,paused});
+    }
+    const eligible=[...this.roles.values()].filter(r=>{
+      const wait=this.goalWaits.get(`${worldId}:${r.botId}`);
+      const check=this.waitChecks.get(`${worldId}:${r.botId}:${r.intentId}`);
+      if(!wait)return false;
+      return !!r.intentId&&r.worldId===worldId&&wait?.intentId===r.intentId&&recheckableWait(wait.condition)&&!r.run&&!r.dispatching&&!r.activeAction&&!r.suspendedActionIds.size&&!r.standby&&!r.recoveryExhausted&&r.status!=="paused"&&r.status!=="disconnected"&&tick-(check?.tick??wait.condition!.sinceTick)>=WAIT_RECHECK_TICKS;
+    });
+    if(!eligible.length)return;
+    this.checkingWaits=true;
+    try{
+      const world=await connection.request<WorldView>("status",{},{timeoutMs:5000});
+      if(connection!==this.connection||world.worldId!==worldId)return;
+      this.view=world;await this.notifyMaterialConditions(world);
+      for(const role of eligible){
+        const wait=this.goalWaits.get(`${worldId}:${role.botId}`),body=world.companions.find(b=>b.botId===role.botId);
+        if(!wait||!body||body.paused||body.stopped||body.standby||body.recoveryInvalid||activeAction(body.action)||role.run)continue;
+        const key=`${worldId}:${role.botId}:${role.intentId}`,prior=this.waitChecks.get(key);
+        // Quantities, not slot swaps/durability/version counters. Peer failure is also
+        // a changed supply condition; do not wait indefinitely for a stopped producer.
+        const stock=world.companions.filter(b=>!wait.condition?.peerId||b.botId===wait.condition.peerId||b.botId===role.botId).map(b=>({id:b.botId,generation:b.bodyGeneration,dimension:b.dimension,items:Array.isArray(b.inventory)?b.inventory.map(recordValue).filter(Boolean).reduce((counts:Record<string,number>,s)=>{if(s&&typeof s.item==="string"&&typeof s.count==="number"&&(!wait.condition?.resource||s.item===wait.condition.resource))counts[s.item]=(counts[s.item]??0)+s.count;return counts;},{}):null,orders:wait.condition?.kind==="processing"?recordValue((b as unknown as Record<string,unknown>).execution)?.processingOrders:undefined}));
+        const conditionKey=waitIdentity(wait.condition!);
+        const signal=JSON.stringify(canonical(stock)),changed=!!prior&&(prior.signal!==""&&prior.signal!==signal||prior.conditionKey!==undefined&&prior.conditionKey!==conditionKey);
+        const attempts=changed?0:prior?.attempts??0;
+        const check={tick:world.gameTick,attempts:Math.min(2,attempts+1),signal,conditionKey};
+        // Keep checking actual facts, but an unchanged exhausted lease is not a new
+        // attempt or journal event. Do not hide a planner fault as a material wait.
+        if(attempts>=2&&!changed){this.waitChecks.set(key,check);if(wait.condition?.kind==="model_recovery")role.status="failed";continue;}
+        await this.journal.append("wait.checked",worldId,{botId:role.botId,intentId:role.intentId,key,...check,condition:wait.condition});this.waitChecks.set(key,check);
+        role.waitReason=undefined;role.noWorkCorrections=0;role.rejectionRecoveryUsed=false;
+        this.goalWaits.delete(`${worldId}:${role.botId}`);
+        await this.journal.append("goal.state",worldId,{botId:role.botId,intentId:role.intentId,state:"continue",reason:"bounded game-time wait reassessment"});
+        this.trigger(role,"wait_reassessment",{condition:wait.condition,attempt:check.attempts,instruction:"本地等待复核已到期。保留总目标，核对实际条件；优先换资源候选、准备工具或授权探索。旧失败原样重试仍被禁止。真实未知效果先核对；若所有方案受阻，保存具体条件并简短告知玩家。"});
+      }
+    }finally{this.checkingWaits=false;}
+  }
+  private knownBlocker(role:Role,run:NonNullable<Role["run"]>):WaitCondition|undefined {
+    const stage=this.stages.current(role.worldId,role.botId,run.intentId);
+    if(stage?.state==="blocked"&&stage.reason){
+      const condition=parseWait(stage.condition,stage.reason,run.lastObserved.gameTick,2);
+      if(condition.kind!=="model_recovery")return condition;
+    }
+    const body=run.lastObserved.companions.find(b=>b.botId===role.botId);
+    const receipt=(body?.actionJournal??[]).map(recordValue).reverse().find(r=>r&&r.historical!==true&&["COMPLETED","FAILED","PARTIAL","RECONCILE_REQUIRED","CANCELLED"].includes(String(r.state))
+      &&terminalBodyGeneration(r).value===run.generation&&(terminalActionId(r)?.startsWith(`${run.intentId}:`)||stage?.actions.includes(terminalActionId(r)??"")));
+    if(!receipt||!["FAILED","PARTIAL","RECONCILE_REQUIRED"].includes(String(receipt.state)))return;
+    const reason=String(receipt.message??recordValue(receipt.execution)?.reason??"");
+    const condition=parseWait(undefined,reason,run.lastObserved.gameTick,2);
+    return condition.kind!=="model_recovery"?condition:undefined;
+  }
+  private async restartUnproductivePlanner(role:Role,run:NonNullable<Role["run"]>):Promise<boolean>{
+    // The previous turn has actually completed here. Replace only this role's
+    // ephemeral session once per intent, retaining goals, memories and result evidence.
+    if(!this.brain||role.awaitingTurn||role.activeAction||role.suspendedActionIds.size||role.standby||role.recoveryExhausted)return false;
+    if(this.journal.role(role.worldId,role.botId,r=>r.type==="planner.restart_requested"&&r.data.intentId===run.intentId,1).length)return false;
+    const fresh=await run.connection.request<WorldView>("status",{},{timeoutMs:5000});
+    const body=fresh.companions.find(b=>b.botId===role.botId);
+    if(!run.valid||role.run!==run||role.revision!==run.revision||run.connection!==this.connection||fresh.worldId!==role.worldId||!body||body.bodyGeneration!==run.generation||activeAction(body.action)||body.paused||body.stopped||body.standby||body.recoveryInvalid)return false;
+    const old=role.thread.threadId;
+    await this.journal.append("planner.restart_requested",role.worldId,{botId:role.botId,intentId:run.intentId,previousThreadId:old});
+    const next=await this.brain.createThread(role.id,this.connection?.executionBackend);
+    if(!run.valid||role.run!==run||role.revision!==run.revision||run.connection!==this.connection)return false;
+    // Session creation can take time. Recheck the authoritative control lease,
+    // rather than restoring the pre-creation snapshot over a pause or new body.
+    const confirmed=await run.connection.request<WorldView>("status",{},{timeoutMs:5000});
+    if(!run.valid||role.run!==run||role.revision!==run.revision||run.connection!==this.connection)return false;
+    const current=confirmed.companions.find(b=>b.botId===role.botId);
+    if(confirmed.worldId!==role.worldId||!current||current.bodyGeneration!==run.generation||current.controlRevision!==body.controlRevision||activeAction(current.action)||current.paused||current.stopped||current.standby||current.recoveryInvalid){
+      this.view=confirmed;
+      if(current&&confirmed.worldId===role.worldId){this.syncRoleAuthoritative(current);this.syncActiveAction(role,current);}
+      this.invalidate(role,current?.paused||current?.stopped||current?.recoveryInvalid?"paused":activeAction(current?.action)?"working":"idle");
+      role.run=undefined;
+      return false;
+    }
+    const expected=AGENT_PROFILES.find(p=>p.id===role.id)!;
+    if(next.model!==expected.model||next.reasoningEffort!==expected.reasoningEffort||[...this.roles.values()].some(r=>r.thread.threadId===next.threadId))throw Error("planner recovery requires a new independent GPT-6 Luna High session");
+    role.thread=next;role.noWorkCorrections=0;role.rejectionRecoveryUsed=false;role.preparationGrace=false;role.waitReason=undefined;this.goalWaits.delete(`${role.worldId}:${role.botId}`);
+    run.lastObserved=confirmed;this.view=confirmed;
+    await this.journal.append("planner.restarted",role.worldId,{botId:role.botId,intentId:run.intentId,previousThreadId:old,threadId:next.threadId});
+    role.pending.set("planner_recovered",{instruction:"旧回合已结束，当前会话只恢复原目标和真实事实。先选择一个当前能力内可执行动作。原地采集不可行时可考虑已验证工位的制作加工、可用材料建设，或不同安全站位后再获取资源。不能只反复登记阶段、重试失败或求助；确实全都不可行时保存具体条件。"});
+    return true;
   }
   private trigger(role: Role, reason: string, data: unknown): void {
     if (!role.intentId || role.status === "paused" || role.status === "disconnected" || role.standby || (role.origin === "autonomous" && !role.autonomyEnabled)) return;
@@ -1916,7 +2061,8 @@ export class CrewController {
       if (body.stopped || body.paused || body.recoveryInvalid) { if (revision === role.revision) role.status = "paused"; return; }
       const deferredKey = `${role.worldId}:${role.botId}`;
       const deferred = this.deferredRequests.get(deferredKey)?.[0];
-      if (deferred && this.stages.current(role.worldId,role.botId,role.intentId)?.state !== "continue" && !role.run && !activeAction(body.action) && role.suspendedActionIds.size === 0 && !role.assignedTaskId && !body.standby) {
+      const blockedAtCheckpoint=!!role.waitReason&&this.goalWaits.get(`${role.worldId}:${role.botId}`)?.condition?.kind!=="unknown_effect";
+      if (deferred && (this.stages.current(role.worldId,role.botId,role.intentId)?.state !== "continue"||blockedAtCheckpoint||role.status==="failed") && !role.run && !activeAction(body.action) && role.suspendedActionIds.size === 0 && !role.assignedTaskId && !body.standby) {
         await this.serializeMutation(async () => {
           if (revision !== role.revision || connection !== this.connection || this.deferredRequests.get(deferredKey)?.[0]?.id !== deferred.id) return;
           // Durable claim prevents replay after an uncertain restart. A claimed request without a command remains reviewable in the journal.
@@ -2062,13 +2208,17 @@ export class CrewController {
             role.waitReason = "本轮没有提交动作；下一次回合要求模型说明原因或提交一个动作";
             role.pending.set("goal_correction", { message: role.noWorkCorrections===1 ? "上一回合没有动作。使用现有真实观察提交可执行动作，或登记具体受阻条件。" : "纠正回合仍无动作。评估不同出口、准备工具或其他可执行工作；仍受阻必须说明资源、位置及唤醒条件。" });
           } else {
-            role.waitReason="模型未形成可执行计划：纠正与替代评估均没有动作或具体等待条件";
-            role.status="idle";
-            const condition=parseWait({kind:"model_recovery"},role.waitReason,run.lastObserved.gameTick,2);
-            this.goalWaits.set(`${role.worldId}:${role.botId}`,{intentId:run.intentId,reason:role.waitReason,condition});
-            role.pending.delete("goal_correction");role.pending.delete("resume_work");
-            await this.journal.append("goal.state",role.worldId,{botId:role.botId,intentId:run.intentId,state:"blocked",reason:role.waitReason,condition});
-            await this.journal.append("role.no_plan",role.worldId,{botId:role.botId,threadId:role.thread.threadId,corrections:role.noWorkCorrections});
+            const blocker=this.knownBlocker(role,run);
+            const recovered=!blocker&&await this.restartUnproductivePlanner(role,run);
+            if((blocker||!recovered)&&run.valid&&role.run===run&&role.revision===revision){
+              role.waitReason=blocker?.reason??"模型未形成可执行计划：已完成纠正、替代评估及一次独立会话恢复";
+              role.status=blocker?"idle":"failed";
+              const condition=blocker??parseWait({kind:"model_recovery"},role.waitReason,run.lastObserved.gameTick,2);
+              this.goalWaits.set(`${role.worldId}:${role.botId}`,{intentId:run.intentId,reason:role.waitReason,condition});
+              role.pending.delete("goal_correction");role.pending.delete("resume_work");
+              await this.journal.append("goal.state",role.worldId,{botId:role.botId,intentId:run.intentId,state:"blocked",reason:role.waitReason,condition});
+              await this.journal.append(blocker?"role.blocked":"role.no_plan",role.worldId,{botId:role.botId,intentId:run.intentId,threadId:role.thread.threadId,corrections:role.noWorkCorrections,condition});
+            }
           }
         }
       }
@@ -2140,6 +2290,7 @@ export class CrewController {
           if (!body.paused && !body.stopped && !body.recoveryInvalid && !body.standby && (role.pending.size || this.resultQueue(role.worldId,role.botId).size)) this.trigger(role,"action_result",{message:"执行权已释放；先核对真实结果，不重放旧动作"});
         }
       }
+      await this.recheckWaits(connection,event.worldId,Number(details.gameTick),Array.isArray(details.companions)?details.companions as BodyView[]:undefined);
       return true;
     }
     if (event.event === "body.available") {
@@ -2197,7 +2348,7 @@ export class CrewController {
         if(condition?.peerId&&condition.resource&&condition.count&&reasons.every(r=>["inventory_changed","environment_changed","body_idle"].includes(r)))continue;
         if(role.waitReason&&!waitingEventRelevant(condition,reasons)&&!this.resultQueue(role.worldId,role.botId).size)continue;
         if(role.waitReason&&waitingEventRelevant(condition,reasons))await this.journal.append("wait.released",role.worldId,{botId:role.botId,condition,reasons,gameTick:refreshed.gameTick});
-        if(reasons.some(r=>["inventory_changed","environment_changed"].includes(r)) && (role.waitReason || this.alternativeUsed.has(`${role.worldId}:${role.botId}:${role.intentId}`))) {
+        if(reasons.some(r=>["inventory_changed","environment_changed","scan_ready","processing_changed"].includes(r)) && condition?.kind!=="unknown_effect" && (role.waitReason || this.alternativeUsed.has(`${role.worldId}:${role.botId}:${role.intentId}`))) {
           this.alternativeUsed.delete(`${role.worldId}:${role.botId}:${role.intentId}`);
           await this.journal.append("goal.alternative_reset",role.worldId,{botId:role.botId,intentId:role.intentId});role.waitReason=undefined;role.noWorkCorrections=0;role.rejectionRecoveryUsed=false;role.preparationGrace=false;
           this.goalWaits.delete(`${role.worldId}:${role.botId}`);

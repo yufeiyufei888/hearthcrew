@@ -47,7 +47,7 @@ export class DesktopMcp {
         if (typeof params.protocolVersion !== "string" || !SUPPORTED_MCP_VERSIONS.has(params.protocolVersion) || !params.clientInfo || !params.capabilities) throw new Error("Unsupported or invalid MCP initialize parameters");
         this.initialized = true;
         result = { protocolVersion: params.protocolVersion, capabilities: { tools: {} },
-          serverInfo: { name: "hearthcrew", version: "0.3.2" }, instructions: "这是开发中的本地 Minecraft 伙伴控制器；接受不等于完成。" };
+          serverInfo: { name: "hearthcrew", version: "0.3.5" }, instructions: "这是开发中的本地 Minecraft 伙伴控制器；接受不等于完成。" };
       } else if (request.method === "ping") result = {};
       else if (!this.ready) throw new Error("MCP initialization is incomplete");
       else if (request.method === "tools/list") result = { tools: DESKTOP_TOOLS };

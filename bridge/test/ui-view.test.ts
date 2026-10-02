@@ -30,8 +30,8 @@ test("makeUiView produces bounded six-page data without retaining raw status or 
         bindings: [{ taskId: "intent:wood", actionId: "team-action", bodyGeneration: 7 }],
       },
     },
-    roles: [{ role: "coordinator", botId: "bot-0", status: "working", taskId: "intent:wood", taskState: "RUNNING", model: "gpt-5.6-luna", reasoningEffort: "high", serviceTier: "priority" }],
-    appServer: { appServer: "connected", cliVersion: "0.153.3", gameOnlyTools: "pending", modelCatalogPath: "C:\\private\\token.json", toolNames: ["observe"] },
+    roles: [{ role: "coordinator", botId: "bot-0", status: "working", taskId: "intent:wood", taskState: "RUNNING", model: "gpt-6-luna", reasoningEffort: "high", serviceTier: "priority" }],
+    appServer: { appServer: "connected", cliVersion: "0.158.0-alpha.2.1", gameOnlyTools: "pending", modelCatalogPath: "C:\\private\\token.json", toolNames: ["observe"] },
     privateRawStatus: "should not appear",
   };
   const events = [
@@ -148,7 +148,7 @@ test("worst-case Chinese payload is hard-capped while retaining bodies and diagn
   }));
   const works = Array.from({ length: 24 }, (_, index) => ({ taskId: `task-${index}`, botId: "bot-0", intentId: "intent", bodyGeneration: 1, kind: "BUILD", steps: Array.from({ length: 16 }, () => ({ position: { x: 1, y: 2, z: 3 }, block: long })) }));
   const ledger = { tasks: works.map((work, index) => ({ task: { id: { value: work.taskId } }, state: index === 0 ? "RUNNING" : "COMPLETED", updatedGameTick: index })) };
-  const roles = Array.from({ length: 3 }, (_, index) => ({ role: `role-${index}`, botId: `bot-${index}`, status: "working", model: "gpt-5.6-luna", reasoningEffort: "high", serviceTier: "priority" }));
+  const roles = Array.from({ length: 3 }, (_, index) => ({ role: `role-${index}`, botId: `bot-${index}`, status: "working", model: "gpt-6-luna", reasoningEffort: "high", serviceTier: "priority" }));
   const events = Array.from({ length: 30 }, (_, index) => ({ sequence: index, type: "role.shared", data: { role: "coordinator", botId: "bot-0", recipients: ["builder"], message: long } }));
   const view = makeUiView({ controller: "running", game: { worldId: "world-a", gameTick: 1, companions, team: { works, ledger, bindings: [] } }, roles, appServer: { appServer: "connected" } }, events);
   assert.equal(view.truncated, true);

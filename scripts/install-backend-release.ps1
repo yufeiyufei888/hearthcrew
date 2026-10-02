@@ -3,7 +3,7 @@ param([Parameter(Mandatory=$true)][string]$ReleaseManifest)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $release=Get-Content -LiteralPath $ReleaseManifest -Encoding UTF8 -Raw | ConvertFrom-Json
-if($release.version -ne '0.3.2' -or $release.executionProtocol -ne 6 -or -not $release.gatesPassed){throw 'Release gates are not complete'}
+if($release.version -notin @('0.3.2','0.3.3','0.3.4','0.3.5') -or $release.executionProtocol -ne 6 -or -not $release.gatesPassed){throw 'Release gates are not complete'}
 $root=[IO.Path]::GetFullPath([string]$release.versionRoot)
 if([IO.Path]::GetFileName($root) -ne '1.21.1-NeoForge_21.1.249'){throw 'Unexpected instance'}
 $mods=Join-Path $root 'mods'
@@ -19,7 +19,7 @@ if($desired.Count -ne 2 -or @($desired | Where-Object {$_.kind -eq 'mod'}).Count
 foreach($entry in $desired){
     SafeName $entry.name
     if((Hash ([string]$entry.source)) -ne $entry.sha256){throw 'Release source hash mismatch'}
-    if($entry.kind -eq 'mod' -and $entry.name -ne 'hearthcrew-neoforge-1.21.1-0.3.2.jar'){throw 'Unexpected HearthCrew artifact'}
+    if($entry.kind -eq 'mod' -and $entry.name -ne ('hearthcrew-neoforge-1.21.1-'+$release.version+'.jar')){throw 'Unexpected HearthCrew artifact'}
     if($entry.kind -eq 'dependency' -and $entry.name -ne 'hearthcrew-execution-library-core-947f0064-mediafree.jar'){throw 'Unregistered dependency'}
 }
 # Existing dependencies are replaceable only with a matching prior installation record.
@@ -40,7 +40,7 @@ foreach($file in Get-ChildItem -LiteralPath $mods -File -Filter '*.jar'){
     if($desired.name -contains $file.Name){throw 'Destination already exists and is not managed'}
 }
 $other=@{};foreach($file in Get-ChildItem -LiteralPath $mods -File){if($old.FullName -notcontains $file.FullName){$other[$file.Name]=Hash $file.FullName}}
-$backup=Join-Path $root ('hearthcrew-mod-backup\'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'-0.3.2')
+$backup=Join-Path $root ('hearthcrew-mod-backup\'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'-'+$release.version)
 New-Item -ItemType Directory -Path $backup | Out-Null
 $oldRecords=@();$written=@()
 try{
@@ -54,7 +54,7 @@ try{
     foreach($entry in $desired){$target=Join-Path $mods $entry.name;Copy-Item -LiteralPath $entry.source -Destination $target -Force;$written+=$entry.name;if((Hash $target) -ne $entry.sha256){throw 'Installed hash mismatch'}}
     foreach($file in $old){if($desired.name -notcontains $file.Name){Remove-Item -LiteralPath $file.FullName}}
     foreach($name in $other.Keys){if((Hash (Join-Path $mods $name)) -ne $other[$name]){throw 'Unrelated mod changed'}}
-    $record=[ordered]@{version='0.3.2';label='DEVELOPMENT_NOT_LONG_PLAY_ACCEPTED';executionProtocol=6;backend='numen';commit=$release.commit;artifacts=@($desired | ForEach-Object {@{name=$_.name;sha256=$_.sha256;kind=$_.kind}});previous=$oldRecords;backup=$backup;otherModsVerified=$other.Count;installedAt=(Get-Date).ToUniversalTime().ToString('o')}
+    $record=[ordered]@{version=$release.version;label='DEVELOPMENT_NOT_LONG_PLAY_ACCEPTED';executionProtocol=6;backend='numen';commit=$release.commit;artifacts=@($desired | ForEach-Object {@{name=$_.name;sha256=$_.sha256;kind=$_.kind}});previous=$oldRecords;backup=$backup;otherModsVerified=$other.Count;installedAt=(Get-Date).ToUniversalTime().ToString('o')}
     $record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $managedPath -Encoding UTF8
     Copy-Item -LiteralPath $managedPath -Destination (Join-Path $backup 'installation.json')
     $record | ConvertTo-Json -Depth 8

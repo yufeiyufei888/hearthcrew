@@ -35,7 +35,8 @@ public class BackendHostTests {
                 socket.setSoTimeout(10000);var in=new java.io.DataInputStream(socket.getInputStream());var out=new java.io.DataOutputStream(socket.getOutputStream());var hello=read(in);
                 if(hello.getAsJsonObject("capabilities").get("executionProtocol").getAsInt()!=6||!hello.getAsJsonObject("backend").get("id").getAsString().equals("numen"))throw new AssertionError("actual handshake missing protocol/backend");
                 if(!hello.get("token").getAsString().equals(token))throw new AssertionError("pairing token mismatch");
-                var ack=base(hello,"handshake_ack");ack.addProperty("requestId","mod-hello");ack.addProperty("accepted",true);write(out,ack);
+                var ack=base(hello,"handshake_ack");ack.addProperty("requestId","mod-hello");ack.addProperty("accepted",true);ack.addProperty("controllerVersion","0.3.4");
+                var capabilities=new JsonObject();capabilities.addProperty("exactMoveCompletion",true);capabilities.addProperty("navigationProgressVersion",1);capabilities.addProperty("boundedNoProgress",true);capabilities.addProperty("facilityStanceVerification",true);ack.add("serverCapabilities",capabilities);write(out,ack);
                 var body=new JsonObject();body.addProperty("botId",botId);body.addProperty("origin","autonomous");body.addProperty("intentGeneration",2);
                 var bind=base(hello,"request");bind.addProperty("requestId","wire-bind");bind.addProperty("op","intent.bind");bind.addProperty("intentId","wire-preparation");bind.addProperty("bodyGeneration",generation);bind.add("body",body);
                 write(out,bind);response(in,out,hello,"wire-bind");

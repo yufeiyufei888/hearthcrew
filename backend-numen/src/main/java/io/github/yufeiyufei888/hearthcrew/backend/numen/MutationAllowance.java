@@ -20,6 +20,7 @@ final class MutationAllowance {
     private boolean preparation,restrictPrimary;
     private int phaseLimit=64,phaseStart;
     Set<BlockPos> primaryPositions=Set.of();
+    private List<BlockPos> orderedTargets=List.of();
     private final Set<BlockPos> placed=new HashSet<>();
     private final Map<BlockPos,BlockState> originalPlacements=new HashMap<>();
     private int accessSpent,primaryBroken,preparationBroken,denied;
@@ -55,15 +56,17 @@ final class MutationAllowance {
     }
     boolean inside(BlockPos p) {return Math.max(Math.max(Math.abs(p.getX()-origin.getX()),Math.abs(p.getY()-origin.getY())),Math.abs(p.getZ()-origin.getZ()))<=radius;}
     void phase(Set<Block> nextPrimary,Set<BlockPos> nextPlacements) {
-        reconcile();primary=Set.copyOf(nextPrimary);placements=Set.copyOf(nextPlacements);originalPlacements.clear();preparation=false;restrictPrimary=false;primaryPositions=Set.of();
+        reconcile();primary=Set.copyOf(nextPrimary);placements=Set.copyOf(nextPlacements);originalPlacements.clear();preparation=false;restrictPrimary=false;primaryPositions=Set.of();orderedTargets=List.of();
         for(var p:placements)originalPlacements.put(p,body.level().getBlockState(p));
     }
-    void preparationPhase(SourceProbe.Source source,int quantity) {phase(Set.of(source.block()),Set.of());preparation=true;restrictPrimary=true;primaryPositions=source.positions();phaseStart=preparationBroken;phaseLimit=quantity;}
-    void collectionPhase(SourceProbe.Source source,int quantity) {phase(Set.of(source.block()),Set.of());restrictPrimary=true;primaryPositions=source.positions();phaseStart=primaryBroken;phaseLimit=quantity;}
+    private void targets(SourceProbe.Source source){primaryPositions=source.positions();orderedTargets=primaryPositions.stream().sorted(Comparator.<BlockPos>comparingDouble(p->p.distSqr(body.blockPosition())).thenComparingLong(BlockPos::asLong)).toList();}
+    void preparationPhase(SourceProbe.Source source,int quantity) {phase(Set.of(source.block()),Set.of());preparation=true;restrictPrimary=true;targets(source);phaseStart=preparationBroken;phaseLimit=quantity;}
+    void collectionPhase(SourceProbe.Source source,int quantity) {phase(Set.of(source.block()),Set.of());restrictPrimary=true;targets(source);phaseStart=primaryBroken;phaseLimit=quantity;}
     private boolean exhausted(){return restrictPrimary&&(preparation?preparationBroken>=preparationBudget||preparationBroken-phaseStart>=phaseLimit:primaryBroken-phaseStart>=phaseLimit);}
     boolean phaseExhausted(){return exhausted();}
     boolean candidateAllowed(BlockPos p){return (!restrictPrimary||primaryPositions.contains(p))&&!exhausted();}
     Set<BlockPos> currentTargetPositions(){return exhausted()?Set.of():primaryPositions;}
+    List<BlockPos> orderedTargetPositions(){return exhausted()?List.of():orderedTargets;}
     boolean restricted(){return restrictPrimary;}
     int preparationBroken(){return preparationBroken;}
     int remaining(){return Math.max(0,accessBudget-accessSpent);}

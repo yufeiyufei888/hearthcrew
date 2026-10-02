@@ -1832,3 +1832,41 @@ test("032 legacy no-plan reassessment is once-only and respects player pause",as
   assert.equal(s.journal.rows().filter(x=>x.type==="recovery.execution_032").length,1);assert.equal(r.command,"保留旧采矿目标");assert.equal(s.connection.calls.some(x=>x.op==="action.submit"),false);
  }finally{await s.cleanup();}
 });
+
+test("034 restores an old blocked resource goal once without replaying actions",async()=>{
+ const s=await setup();try{
+  await s.controller.command("保留原木目标","bot-1");await waitFor(()=>s.brain.turns.length===1);
+  const c=s.controller as any,r=c.roles.get("coordinator");
+  r.run.goalState="blocked";r.run.goalReason="METHOD_CAPACITY: minecraft:dark_oak_log";r.run.goalCondition={kind:"resources",reason:r.run.goalReason,sinceTick:1,recoveryAttempts:0};
+  c.alternativeUsed.add(`world-a:bot-1:${r.intentId}`);s.brain.turns[0].resolve({status:"completed"});await waitFor(()=>!r.run);
+  const evidence=await s.journal.append("goal.state",context.worldId,{botId:"bot-1",intentId:r.intentId,state:"blocked",reason:r.waitReason});
+  // Prior-release metadata only in this isolated temporary journal.
+  (s.journal as any).records.find((x:any)=>x.sequence===evidence.sequence).version="0.3.3";
+  s.connection.view.companions[0].paused=true;
+  await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");assert.equal(s.journal.rows().filter(x=>x.type==="recovery.wait_034").length,0);
+  s.connection.view.companions[0].paused=false;
+  await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");await waitFor(()=>s.brain.turns.length===2);
+  await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");
+  assert.equal(s.journal.rows().filter(x=>x.type==="recovery.wait_034").length,1);assert.equal(r.command,"保留原木目标");
+  assert.equal(s.connection.calls.some(x=>x.op==="action.submit"),false,"reassessment never replays old mutations");
+ }finally{await s.cleanup();}
+});
+
+test("035 reassesses a 034 stall once and cannot override pause or uncertain effects",async()=>{
+ const s=await setup();try{
+  await s.controller.command("继续当前采矿目标","bot-1");await waitFor(()=>s.brain.turns.length===1);
+  const c=s.controller as any,r=c.roles.get("coordinator");
+  r.run.goalState="blocked";r.run.goalReason="path stalled";r.run.goalCondition={kind:"path",reason:"path stalled",sinceTick:1,recoveryAttempts:0};
+  c.alternativeUsed.add(`world-a:bot-1:${r.intentId}`);s.brain.turns[0].resolve({status:"completed"});await waitFor(()=>!r.run);
+  const evidence=await s.journal.append("goal.state",context.worldId,{botId:"bot-1",intentId:r.intentId,state:"blocked",reason:r.waitReason});
+  (s.journal as any).records.find((x:any)=>x.sequence===evidence.sequence).version="0.3.4";
+  s.connection.view.modVersion="0.3.5";s.connection.view.companions[0].paused=true;
+  await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");assert.equal(s.journal.rows().filter(x=>x.type==="recovery.wait_035").length,0);
+  s.connection.view.companions[0].paused=false;c.goalWaits.get("world-a:bot-1").condition.kind="unknown_effect";
+  c.trigger=()=>{};await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");assert.equal(s.journal.rows().filter(x=>x.type==="recovery.wait_035").length,0);
+  c.goalWaits.get("world-a:bot-1").condition.kind="path";
+  await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");await c.wakeReconciledRoles(s.connection,s.connection.view,"reconnected");
+  assert.equal(s.journal.rows().filter(x=>x.type==="recovery.wait_035").length,1);assert.equal(r.command,"继续当前采矿目标");
+  assert.equal(s.connection.calls.some(x=>x.op==="action.submit"),false);
+ }finally{await s.cleanup();}
+});

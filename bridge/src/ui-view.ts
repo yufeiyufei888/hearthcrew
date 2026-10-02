@@ -504,7 +504,7 @@ function diagnostics(root: RecordValue, game: RecordValue | undefined, roles: re
     teamRecoveryInvalid: typeof team?.recoveryInvalid === "boolean" ? team.recoveryInvalid : UNKNOWN,
   });
   const controllerLayer = layer(safeText(root.controller, 64), {
-    version:"0.3.2",
+    version:"0.3.5",
     quietProgress: publicText(record(array(root.diagnosticEvents).map(record).filter(r=>r?.type==="work.progress").at(-1)?.data)?.reason??"无近期静默记录；阶段结束不要求公开发言"),
     lastError: publicText(array(root.diagnosticEvents).map(record).filter(r=>["ui.failure","tool.rejected","role.failure","turn.recovery"].includes(String(r?.type))).at(-1)?.data && record(array(root.diagnosticEvents).map(record).filter(r=>["ui.failure","tool.rejected","role.failure"].includes(String(r?.type))).at(-1)?.data)?.reason),
     restoration: Math.min(array(root.restoration).length, 24),

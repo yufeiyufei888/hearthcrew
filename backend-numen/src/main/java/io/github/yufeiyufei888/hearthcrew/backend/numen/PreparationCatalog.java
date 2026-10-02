@@ -93,7 +93,13 @@ final class PreparationCatalog {
         var acquisition=operations.entrySet().stream().filter(e->e.getValue().kind()==Kind.ACQUIRE).map(Map.Entry::getKey).collect(java.util.stream.Collectors.toUnmodifiableSet());
         var limits=new PreparationGraph.Limits(request.limits.maxDepth(),Math.max(1,steps),Math.max(0,breaks),4096,64);
         String goal=request instanceof RecipeCraftRequest r?r.goal():key(request.output);
-        return java.util.concurrent.CompletableFuture.supplyAsync(()->compute(snapshotMethods,snapshotStock,acquisition,limits,goal,needed,budget::claim));
+        // A collection goal can span several finite sources. Only the immediate
+        // acquisition batch must fit a verified source; its prerequisites still
+        // have to be fully satisfied. The root retains the original requested count.
+        int capacity=snapshotMethods.stream().filter(m->acquisition.contains(m.id())&&m.output().equals(goal))
+            .mapToInt(m->m.outputCount()*m.maximumRuns()).max().orElse(needed);
+        int batch=request instanceof CollectRequest?Math.min(needed,capacity):needed;
+        return java.util.concurrent.CompletableFuture.supplyAsync(()->compute(snapshotMethods,snapshotStock,acquisition,limits,goal,batch,budget::claim));
     }
     private static PreparationGraph.Result compute(List<PreparationGraph.Method> methods,Map<String,Integer> stock,Set<String> acquisition,PreparationGraph.Limits limits,String goal,int needed,java.util.function.BooleanSupplier credit){
         long began=System.nanoTime();

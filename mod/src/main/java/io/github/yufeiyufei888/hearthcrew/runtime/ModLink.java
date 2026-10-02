@@ -140,16 +140,16 @@ public final class ModLink implements AutoCloseable {
                 DataInputStream input = new DataInputStream(connection.getInputStream());
                 DataOutputStream output = new DataOutputStream(connection.getOutputStream());
                 JsonObject hello = envelope("handshake");
-                hello.addProperty("requestId", "mod-hello"); hello.addProperty("client", "mod");hello.addProperty("modVersion",backendOps==null?"0.3.2":"0.3.2"); hello.addProperty("token", token);
+                hello.addProperty("requestId", "mod-hello"); hello.addProperty("client", "mod");hello.addProperty("modVersion","0.3.5"); hello.addProperty("token", token);
                 JsonObject caps = new JsonObject(); caps.addProperty("events", true); caps.addProperty("acknowledgements", true);
                 caps.addProperty("executionProtocol",5);caps.addProperty("resourcePreparation",true);caps.addProperty("unifiedPreparation",true);caps.addProperty("historySeparate",true);caps.addProperty("safeAccessBudget",true);caps.addProperty("nativePickupPost",true);caps.addProperty("sharedSequenceBudget",true);caps.addProperty("continuousCollection",true);caps.addProperty("sequence",true);caps.addProperty("reconciliation", true); caps.addProperty("autonomy", true); caps.addProperty("publicChat", true); caps.addProperty("maxFrameBytes", MAX_FRAME); if(backendOps!=null){caps.addProperty("executionProtocol",6);caps.addProperty("sequence",false);hello.add("backend",BackendLinkOperations.descriptor());}
                 hello.add("capabilities", caps);
                 write(output, hello);
                 JsonObject ack = read(input);
-                if(backendOps!=null){var capabilities=ack.has("serverCapabilities")?ack.getAsJsonObject("serverCapabilities"):new JsonObject();
-                    if(!capabilities.has("exactMoveCompletion")||!capabilities.get("exactMoveCompletion").getAsBoolean()||!capabilities.has("navigationProgressVersion")||capabilities.get("navigationProgressVersion").getAsInt()!=1||!capabilities.has("boundedNoProgress")||!capabilities.get("boundedNoProgress").getAsBoolean()||!capabilities.has("facilityStanceVerification")||!capabilities.get("facilityStanceVerification").getAsBoolean())throw new IOException("Controller requires 0.3.2 navigation/recovery contract");}
                 if (!sameSession(ack) || !"handshake_ack".equals(ack.get("kind").getAsString()) || !ack.get("accepted").getAsBoolean())
                     throw new IOException("handshake not accepted");
+                if(backendOps!=null){if(!ack.has("controllerVersion")||!"0.3.5".equals(ack.get("controllerVersion").getAsString()))throw new IOException("Controller requires 0.3.5 model contract");var capabilities=ack.has("serverCapabilities")?ack.getAsJsonObject("serverCapabilities"):new JsonObject();
+                    if(!capabilities.has("exactMoveCompletion")||!capabilities.get("exactMoveCompletion").getAsBoolean()||!capabilities.has("navigationProgressVersion")||capabilities.get("navigationProgressVersion").getAsInt()!=1||!capabilities.has("boundedNoProgress")||!capabilities.get("boundedNoProgress").getAsBoolean()||!capabilities.has("facilityStanceVerification")||!capabilities.get("facilityStanceVerification").getAsBoolean())throw new IOException("Controller requires 0.3.5 navigation/recovery contract");}
                 connection.setSoTimeout(0); ready = true; state = "ready";
                 long thisEpoch = epoch;
                 socketsBySession.put(thisEpoch, connection);
@@ -162,9 +162,9 @@ public final class ModLink implements AutoCloseable {
                     server.execute(() -> { try { if (ready && epoch == thisEpoch) handle(message, thisEpoch); } finally { inboundSlots.release(); } });
                 }
             } catch (Exception error) {
-                boolean incompatible = "Controller requires 0.3.2 navigation/recovery contract".equals(error.getMessage());
-                state = closed ? "closed" : incompatible ? "version_mismatch: update Mod and controller to 0.3.2" : "disconnected";
-                org.slf4j.LoggerFactory.getLogger("HearthCrewLink").warn("HearthCrew transport read closed: {}", incompatible ? "BACKEND_0_3_2_REQUIRED" : error.getClass().getSimpleName());
+                boolean incompatible = "Controller requires 0.3.5 navigation/recovery contract".equals(error.getMessage())||"Controller requires 0.3.5 model contract".equals(error.getMessage());
+                state = closed ? "closed" : incompatible ? "version_mismatch: update Mod and controller to 0.3.5" : "disconnected";
+                org.slf4j.LoggerFactory.getLogger("HearthCrewLink").warn("HearthCrew transport read closed: {}", incompatible ? "HEARTHCREW_0_3_5_REQUIRED" : error.getClass().getSimpleName());
             } finally { ready = false; closeSocket(); }
             if (!closed) try { Thread.sleep(2000); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
         }
@@ -573,7 +573,7 @@ public final class ModLink implements AutoCloseable {
         JsonObject result = new JsonObject(); result.addProperty("worldId", worldId); result.addProperty("gameTick", server.overworld().getGameTime());
         result.add("chunkLoading", JSON.toJsonTree(WorldEvents.chunkDiagnostics()));
         result.add("team", JSON.toJsonTree(WorldEvents.team().snapshot()));
-        result.addProperty("stage", "0.3.2_DEVELOPMENT_UNACCEPTED");result.addProperty("modVersion","0.3.2");result.addProperty("executionProtocol",5);result.addProperty("snapshotGeneration",server.overworld().getGameTime()); result.add("capabilities",ActionCapabilities.definitions()); JsonArray bots = new JsonArray();
+        result.addProperty("stage", "0.3.5_DEVELOPMENT_UNACCEPTED");result.addProperty("modVersion","0.3.5");result.addProperty("executionProtocol",5);result.addProperty("snapshotGeneration",server.overworld().getGameTime()); result.add("capabilities",ActionCapabilities.definitions()); JsonArray bots = new JsonArray();
         for (CompanionEntity body : CrewWorldData.liveCompanions(server)) {
             JsonObject bot = new JsonObject(); bot.addProperty("botId", body.companionId().toString()); bot.addProperty("entityId", body.getUUID().toString());
             bot.addProperty("bodyType", "ServerPlayer"); bot.addProperty("bodyGeneration", body.bodyGeneration()); bot.addProperty("name", body.getDisplayName().getString());

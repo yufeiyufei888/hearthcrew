@@ -9,6 +9,7 @@ import { CrewJournal } from "../src/crew-journal.js";
 import { AGENT_PROFILES, type StartedThread, type TurnHandle } from "../src/app-server-client.js";
 import type { ModConnection } from "../src/mod-connection.js";
 import { makeUiView } from "../src/ui-view.js";
+import {parseWait} from "../src/wait-condition.js";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check: () => boolean) { for (let i=0;i<400;i++) { if(check()) return; await sleep(5); } throw new Error("condition timed out"); }
@@ -45,7 +46,8 @@ class Link extends EventEmitter {
 class Brain implements BrainPort {
   turns: {handle:TurnHandle; input:any; resolve:(value:any)=>void}[]=[];
   active=new Set<string>(); hangInterrupt=false; overlaps=0;
-  async createThread(id:any):Promise<StartedThread> { const p=AGENT_PROFILES.find(p=>p.id===id)!;return {threadId:`thread-${id}`,profile:p,model:p.model,reasoningEffort:p.reasoningEffort,effectiveServiceTier:"default"}; }
+  threads=0;
+  async createThread(id:any):Promise<StartedThread> { const p=AGENT_PROFILES.find(p=>p.id===id)!;return {threadId:`thread-${id}-${this.threads++}`,profile:p,model:p.model,reasoningEffort:p.reasoningEffort,effectiveServiceTier:"default"}; }
   async startTurn(thread:StartedThread,input:string):Promise<TurnHandle> {
     if(this.active.has(thread.threadId)){this.overlaps++;throw new Error("overlapping turn");}
     this.active.add(thread.threadId);
@@ -166,5 +168,174 @@ test("new player command waits for an old timed-out turn and then resumes only t
   assert.equal(f.brain.turns.length,1);
   f.brain.turns[0].resolve({status:"interrupted"});await until(()=>f.brain.turns.length===2);
   assert.equal(f.brain.turns[1].input.intentId,command.intentId);assert.equal(f.brain.overlaps,0);
+ }finally{await f.close();}
+});
+
+test("resource wait is checked in game time, wakes without world mutation and persists the lease",async()=>{
+ const f=await fixture(1,10000);try{
+  const controller=f.controller as any,role=controller.roles.get("coordinator");
+  role.origin="owner";await controller.suspendPlanning(role,"fixture wait");await until(()=>!role.dispatching);
+  role.pending.clear();role.status="idle";role.waitReason="METHOD_CAPACITY: acquire:minecraft:dark_oak_log";
+  const wait={intentId:role.intentId,reason:role.waitReason,condition:parseWait(undefined,role.waitReason,1,0)};
+  controller.goalWaits.set("world:bot-0",wait);
+  let wakes=0;controller.trigger=()=>{wakes++;};
+  for(const tick of [100,1201,2401,3601,4801]){
+   f.link.view.gameTick=tick;controller.goalWaits.set("world:bot-0",wait);
+   await controller.recheckWaits(f.link,"world",tick);
+  }
+  assert.equal(wakes,2,"at most two unchanged reassessments, never infinite model polling");
+  assert.equal(f.journal.rows().filter(r=>r.type==="wait.checked").length,2,"exhausted unchanged waits do not write a pretend attempt every minute");
+  assert.equal(f.link.calls.filter(c=>c.op==="action.submit").length,0);
+  const restored=new CrewController(f.journal);await restored.initialize();
+  assert.equal((restored as any).waitChecks.get(`world:bot-0:${role.intentId}`).attempts,2,"reconnect does not reset allowance");
+ }finally{await f.close();}
+});
+test("paused and uncertain-effect waits cannot be replayed by the local watchdog",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator");r.origin="owner";await c.suspendPlanning(r,"fixture wait");await until(()=>!r.dispatching);r.pending.clear();
+  r.status="idle";r.waitReason="RECONCILE_REQUIRED";c.goalWaits.set("world:bot-0",{intentId:r.intentId,reason:r.waitReason,condition:parseWait(undefined,r.waitReason,1,0)});
+  let wakes=0;c.trigger=()=>wakes++;f.link.view.gameTick=2000;await c.recheckWaits(f.link,"world",2000);assert.equal(wakes,0);
+  r.status="paused";c.goalWaits.set("world:bot-0",{intentId:r.intentId,reason:"path blocked",condition:parseWait(undefined,"path blocked",1,0)});
+  await c.recheckWaits(f.link,"world",2000);assert.equal(wakes,0);
+ }finally{await f.close();}
+});
+test("insufficient supplies from a blocked producer release the dependent wait once",async()=>{
+ const f=await fixture(2,10000);try{
+  const c=f.controller as any,requester=c.roles.get("coordinator"),producer=c.roles.get("gatherer");
+  requester.origin=producer.origin="owner";await c.suspendPlanning(requester,"fixture wait");await c.suspendPlanning(producer,"fixture wait");await until(()=>!requester.dispatching&&!producer.dispatching);
+  requester.status=producer.status="idle";requester.waitReason="need iron";producer.waitReason="mine path blocked";
+  c.goalWaits.set("world:bot-0",{intentId:requester.intentId,reason:requester.waitReason,condition:parseWait({kind:"materials",resource:"minecraft:raw_iron",count:4,peerId:"bot-1"},requester.waitReason,1,0)});
+  f.link.view.companions[1].inventory=[{item:"minecraft:raw_iron",count:2}];let wakes=0;c.trigger=()=>wakes++;
+  await c.notifyMaterialConditions(f.link.view);await c.notifyMaterialConditions(f.link.view);
+  assert.equal(wakes,1);assert.equal(c.goalWaits.has("world:bot-0"),false);assert.equal(f.link.calls.some(v=>v.op==="action.submit"),false);
+ }finally{await f.close();}
+});
+test("unfinished furnace is deferred without failed action, ready output can be collected",async()=>{
+ const f=await fixture(1,10000);try{
+  (f.link as any).executionBackend={id:"numen",actions:["COLLECT_PROCESS"],version:"034",executionProtocol:6};
+  const position={x:3,y:64,z:0},order={orderId:"cook",state:"PROCESSING",position,expected:3,collected:0};
+  (f.link.view.companions[0] as any).execution={processingOrders:[order]};
+  const c=f.controller as any,r=c.roles.get("coordinator");
+  const blocked=c.actionContext(r,"COLLECT_PROCESS",{position},f.link.view);c.recordFailedContext("world:bot-0",blocked);
+  const waiting=await f.call(0,"act",{kind:"COLLECT_PROCESS",parameters:{position}});
+  assert.equal(waiting.success,true);assert.equal(JSON.parse(waiting.contentItems[0].text).deferred,true);
+  assert.equal(f.link.calls.filter(c=>c.op==="action.submit").length,0);
+  assert.equal(r.run.goalCondition.kind,"processing");
+  order.state="OUTPUT_READY";
+  assert.notEqual(c.actionContext(r,"COLLECT_PROCESS",{position},f.link.view),blocked);
+  const collected=await f.call(0,"act",{actionId:"now-ready",kind:"COLLECT_PROCESS",parameters:{position}});
+  assert.equal(collected.success,true);assert.equal(f.link.calls.filter(c=>c.op==="action.submit").length,1);
+ }finally{await f.close();}
+});
+test("blocked stage cannot indefinitely queue a normal player request behind an idle body",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator");r.origin="owner";await c.suspendPlanning(r,"fixture wait");await until(()=>!r.dispatching);
+  await c.stages.save({worldId:"world",botId:"bot-0",intentId:r.intentId,stageId:"old",summary:"old coal",scope:"local",completion:{kind:"inventory",resource:"minecraft:coal",count:16},state:"continue",actions:[]});
+  r.waitReason="NO_SATISFIABLE_METHOD: minecraft:coal";
+  c.goalWaits.set("world:bot-0",{intentId:r.intentId,reason:r.waitReason,condition:parseWait(undefined,r.waitReason,1,0)});
+  const result=await f.controller.command("制作一把石镐","bot-0") as any;
+  assert.notEqual(result.queued,true);assert.equal(f.link.calls.some(x=>x.op==="control"&&x.body.operation==="retask"),true);
+  assert.equal(c.stages.get("world","bot-0",f.brain.turns[0].input.intentId,"old").summary,"old coal","historical stage remains intact");
+ }finally{await f.close();}
+});
+
+
+test("wait lease excludes paused game ticks and inventory slot reorder does not reset recovery",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator");r.origin="owner";await c.suspendPlanning(r,"fixture wait");await until(()=>!r.dispatching);r.pending.clear();r.status="idle";
+  const wait={intentId:r.intentId,reason:"path blocked",condition:parseWait(undefined,"path blocked",1,0)};
+  r.waitReason=wait.reason;c.goalWaits.set("world:bot-0",wait);let wakes=0;c.trigger=()=>wakes++;
+  const check=async(tick:number)=>{f.link.view.gameTick=tick;await c.recheckWaits(f.link,"world",tick);};
+  await check(1);r.status="paused";f.link.view.companions[0].paused=true;await check(101);await check(2101);
+  r.status="idle";f.link.view.companions[0].paused=false;await check(2201);await check(3301);assert.equal(wakes,0,"only 1100 active ticks since pause");
+  f.link.view.companions[0].inventory=[{item:"minecraft:coal",count:3},{item:"minecraft:stick",count:2}];await check(3401);assert.equal(wakes,1);
+  for(const tick of [4601,5801]){r.waitReason=wait.reason;c.goalWaits.set("world:bot-0",wait);f.link.view.companions[0].inventory.reverse();await check(tick);}
+  assert.equal(wakes,2,"slot swaps cannot restart unchanged-condition allowance");
+ }finally{await f.close();}
+});
+
+test("unexplained no-plan recovers one independent session, preserving intent and real outcomes",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator"),intent=r.intentId,first=r.thread.threadId;
+  for(let i=0;i<3;i++){await until(()=>f.brain.turns.length>i);f.brain.turns[i].resolve({status:"completed"});}
+  await until(()=>f.brain.turns.length===4);
+  assert.notEqual(r.thread.threadId,first);assert.equal(r.intentId,intent);assert.equal(f.brain.overlaps,0);
+  assert.equal(f.journal.rows().filter(x=>x.type==="planner.restarted").length,1);
+  assert.equal(f.link.calls.filter(x=>x.op==="action.submit").length,0,"recovery plans; never replays world changes");
+  assert.equal((await f.call(0,"act",{kind:"MOVE",parameters:{position:{x:4,y:64,z:0}}})).success,false,"old completed session has no authority");
+  const accepted=await f.call(3,"act",{kind:"COLLECT_RESOURCE",actionId:"fresh-wood",parameters:{resource:"minecraft:oak_log",count:4}});
+  assert.equal(accepted.success,true);f.brain.turns[3].resolve({status:"completed"});await until(()=>!r.dispatching);
+  assert.equal(f.journal.rows().some(x=>x.type==="role.no_plan"),false);
+ }finally{await f.close();}
+});
+
+test("fresh session also producing no plan becomes explicit fault, never an endless restart loop",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator");
+  for(let i=0;i<6;i++){await until(()=>f.brain.turns.length>i);f.brain.turns[i].resolve({status:"completed"});}
+  await until(()=>!r.dispatching&&r.status==="failed");await sleep(40);
+  assert.equal(f.brain.turns.length,6);assert.equal(f.brain.threads,2);
+  assert.equal(f.journal.rows().filter(x=>x.type==="planner.restart_requested").length,1);
+  assert.equal((await f.controller.status() as any).roles[0].activity,"failed");
+  assert.equal(f.brain.overlaps,0);
+ }finally{await f.close();}
+});
+
+test("factual blocked stage survives unproductive rounds instead of becoming generic model waiting",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator"),condition=parseWait({kind:"path",position:{x:6,y:60,z:0}},"stone wall blocks lower entrance",1,0);
+  await c.stages.save({worldId:"world",botId:r.botId,intentId:r.intentId,stageId:"mine",summary:"iron",scope:"local",completion:{kind:"inventory",resource:"minecraft:raw_iron",count:4},state:"blocked",reason:condition.reason,condition,actions:[]});
+  for(let i=0;i<3;i++){await until(()=>f.brain.turns.length>i);f.brain.turns[i].resolve({status:"completed"});}
+  await until(()=>!r.dispatching);
+  assert.equal(c.goalWaits.get("world:bot-0").condition.kind,"path");assert.equal(f.brain.threads,1);
+  assert.equal(f.journal.rows().some(x=>x.type==="role.no_plan"),false);assert.match(r.waitReason,/stone wall/);
+ }finally{await f.close();}
+});
+
+test("different material condition gets its own assessment; renamed stage cannot refill it",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator");r.origin="owner";await c.suspendPlanning(r,"fixture");await until(()=>!r.dispatching);r.pending.clear();r.status="idle";
+  let wakes=0;c.trigger=()=>wakes++;
+  for(const [tick,item] of [[1201,"coal"],[2401,"coal"],[3601,"coal"],[4801,"oak_log"],[6001,"oak_log"]] as const){
+   f.link.view.gameTick=tick;const condition=parseWait({kind:"resources",resource:`minecraft:${item}`},`renamed-${tick}`,1,0);
+   c.goalWaits.set("world:bot-0",{intentId:r.intentId,reason:condition.reason,condition});await c.recheckWaits(f.link,"world",tick);
+  }
+  assert.equal(wakes,4);assert.equal(f.link.calls.some(x=>x.op==="action.submit"),false);
+ }finally{await f.close();}
+});
+
+test("planner session creation cannot restore work over a new authoritative pause",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator"),original=r.thread.threadId;
+  const create=f.brain.createThread.bind(f.brain);
+  f.brain.createThread=async(id:any)=>{const next=await create(id);f.link.view.companions[0].paused=true;return next;};
+  for(let i=0;i<3;i++){await until(()=>f.brain.turns.length>i);f.brain.turns[i].resolve({status:"completed"});}
+  await until(()=>!r.dispatching);
+  assert.equal(r.status,"paused");assert.equal(r.thread.threadId,original);
+  assert.equal(f.brain.turns.length,3);assert.equal(f.journal.rows().some(x=>x.type==="planner.restarted"||x.type==="role.no_plan"),false);
+  assert.equal(f.link.calls.some(x=>x.op==="action.submit"),false);
+ }finally{await f.close();}
+});
+
+test("an older failure cannot hide the latest confirmed completion as a current blocker",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator"),b=f.link.view.companions[0];
+  const failure={state:"FAILED",id:{value:`${r.intentId}:old`},epoch:{bodyGeneration:7},message:"PATH_BLOCKED: stone wall"};
+  b.actionJournal=[failure];r.run.lastObserved=structuredClone(f.link.view);
+  assert.equal(c.knownBlocker(r,r.run).kind,"path");
+  b.actionJournal.push({state:"COMPLETED",id:{value:`${r.intentId}:latest`},epoch:{bodyGeneration:7},message:"actual task completed"});
+  r.run.lastObserved=structuredClone(f.link.view);
+  assert.equal(c.knownBlocker(r,r.run),undefined,"only the latest physical terminal can explain current no-work rounds");
+ }finally{await f.close();}
+});
+
+test("an old generic planner wait is not a physical blocker against independent recovery",async()=>{
+ const f=await fixture(1,10000);try{
+  const c=f.controller as any,r=c.roles.get("coordinator"),condition=parseWait({kind:"model_recovery"},"模型未形成可执行计划",1,0);
+  await c.stages.save({worldId:"world",botId:r.botId,intentId:r.intentId,stageId:"old-wait",summary:"original goal",scope:"local",completion:{kind:"inventory",resource:"minecraft:coal",count:16},state:"blocked",reason:condition.reason,condition,actions:[]});
+  for(let i=0;i<3;i++){await until(()=>f.brain.turns.length>i);f.brain.turns[i].resolve({status:"completed"});}
+  await until(()=>f.brain.turns.length===4);
+  assert.equal(f.journal.rows().filter(x=>x.type==="planner.restarted").length,1);
+  assert.equal(f.link.calls.some(x=>x.op==="action.submit"),false);
  }finally{await f.close();}
 });

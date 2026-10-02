@@ -174,7 +174,7 @@ async function main(): Promise<void> {
       if (fixture && (fixture.evidence !== EVIDENCE || fixture.worldId !== metadata.worldId || fixture.runId !== runId)) throw new Error("fixture report identity mismatch");
       if (fixture?.status === "FAIL") throw new Error(`fixture rejected actual state: ${fixture.failure ?? "unknown"}`);
       const roles: RecordValue[] = last.roles ?? [];
-      if (roles.length !== 3 || new Set(roles.map(role => role.threadId)).size !== 3 || roles.some(role => !role.threadId || role.model !== "gpt-5.6-luna" || role.reasoningEffort !== "high")) throw new Error("three independent Luna/high sessions were not confirmed");
+      if (roles.length !== 3 || new Set(roles.map(role => role.threadId)).size !== 3 || roles.some(role => !role.threadId || role.model !== "gpt-6-luna" || role.reasoningEffort !== "high")) throw new Error("three independent Luna/high sessions were not confirmed");
       const healthyAction = bodies.some(body => body.action && ["ACCEPTED", "RUNNING", "SUSPENDED"].includes(body.action.state));
       if (fixture?.status !== "PASS" && roles.some(role => role.status === "failed") && !healthyAction)
         throw new Error("one or more model roles failed; healthy body actions were allowed to finish first");

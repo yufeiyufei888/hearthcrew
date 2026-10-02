@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
     id 'net.neoforged.moddev'
 }
-version = '0.3.2-lab'
+version = '0.3.5-lab'
 evaluationDependsOn(':kernel')
 evaluationDependsOn(':backend-numen')
 evaluationDependsOn(':backend-api')
@@ -10,6 +10,7 @@ if(providers.gradleProperty('backendHost').isPresent()) evaluationDependsOn(':mo
 dependencies {
     implementation project(':backend-numen')
     if(providers.gradleProperty('backendHost').isPresent()) compileOnly project(':mod')
+    if(providers.gradleProperty('hearthcrewCoexistMod').isPresent()) runtimeOnly files(providers.gradleProperty('hearthcrewCoexistMod').get())
 }
 neoForge {
     version = '21.1.249'
@@ -22,10 +23,10 @@ neoForge {
             if (runDir.exists()) throw new GradleException('Choose a fresh backendRunId; old evidence must not be overwritten')
             gameDirectory = runDir
             def suite = providers.gradleProperty('backendSuite').getOrElse('base')
-            if (!(suite in ['recovery032', 'recoveryfinal', 'recoveryedge', 'recovery', 'base', 'contracts', 'limits-candidate', 'limits-door', 'limits-output', 'lifecycle', 'excavation', 'journal', 'safety', 'preparation', 'preparation-empty', 'containers', 'orders', 'host', 'navigation', 'processing', 'compare-legacy', 'compare-numen', 'autonomy'])) throw new GradleException('Unknown backend suite')
+            if (!(suite in ['recovery035', 'wait034facts', 'wait034', 'coexistence', 'recovery032', 'recoveryfinal', 'recoveryedge', 'recovery', 'base', 'contracts', 'limits-candidate', 'limits-door', 'limits-output', 'lifecycle', 'excavation', 'journal', 'safety', 'preparation', 'preparation-empty', 'containers', 'orders', 'host', 'navigation', 'processing', 'compare-legacy', 'compare-numen', 'autonomy'])) throw new GradleException('Unknown backend suite')
             systemProperty 'neoforge.enabledGameTestNamespaces', suite.startsWith('compare-') ? 'hearthcrew_backend_comparison' : suite == 'base' ? 'hearthcrew_backend_lab' : suite == 'preparation' ? 'hearthcrew_backend_preparation,hearthcrew_backend_preparation_empty' : "hearthcrew_backend_${suite.replace('-', '_')}"
             systemProperty 'hearthcrew.backendLab', 'true'
-            if(suite=='host'||suite.startsWith('compare-')||suite=='autonomy'){
+            if(suite=='host'||suite=='coexistence'||suite=='wait034facts'||suite.startsWith('compare-')||suite=='autonomy'){
                 if(!providers.gradleProperty('backendHost').isPresent())throw new GradleException('Host tests require backendHost')
                 systemProperty 'hearthcrew.executionBackend',suite=='compare-legacy'?'legacy':'numen'
                 systemProperty 'hearthcrew.isolatedGameTest','true'
@@ -45,7 +46,7 @@ neoForge {
 }
 tasks.named('jar') { archiveBaseName = 'hearthcrew-backend-lab-NOT-FOR-INSTALL' }
 
-if(!providers.gradleProperty('backendHost').isPresent())sourceSets.main.java.exclude('**/runtime/BackendHostTests.java','**/runtime/BackendComparisonTests.java','**/runtime/BackendAutonomyTests.java')
+if(!providers.gradleProperty('backendHost').isPresent())sourceSets.main.java.exclude('**/runtime/BackendHostTests.java','**/runtime/BackendComparisonTests.java','**/runtime/BackendAutonomyTests.java','**/runtime/BackendWait034FactsTests.java')
 
 // One Java module: the API and host intentionally share packages. Both @Mod entrypoints
 // are declared in this isolated combined descriptor; gameplay packaging is a separate gate.
@@ -54,7 +55,7 @@ tasks.named('processResources') {
     if(providers.gradleProperty('backendHost').isPresent())doLast {
         def target=file("${destinationDir}/META-INF/neoforge.mods.toml")
         def lab=rootProject.file('backend-lab/src/main/resources/META-INF/neoforge.mods.toml').getText('UTF-8')
-        def host=rootProject.file('mod/src/main/resources/META-INF/neoforge.mods.toml').getText('UTF-8').replace('${version}','0.3.2-experimental')
+        def host=rootProject.file('mod/src/main/resources/META-INF/neoforge.mods.toml').getText('UTF-8').replace('${version}','0.3.5-experimental')
         target.setText(lab+'\n'+host.substring(host.indexOf('[[mods]]')),'UTF-8')
     }
 }

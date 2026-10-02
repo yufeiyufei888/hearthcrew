@@ -4,7 +4,7 @@ import org.spongepowered.asm.mixin.extensibility.*;
 import org.objectweb.asm.tree.ClassNode;
 import java.util.*;
 
-/** A comparison/legacy launch must not install a second ServerPlayer respawn redirect. */
+/** A comparison/legacy launch must not adapt bodies owned by another backend. */
 public final class BackendMixinSelector implements IMixinConfigPlugin {
     public void onLoad(String mixinPackage) {}
     public String getRefMapperConfig(){return null;}

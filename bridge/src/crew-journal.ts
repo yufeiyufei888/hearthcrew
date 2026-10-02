@@ -92,7 +92,7 @@ export class CrewJournal {
     while(this.pending.length){
       if(this.segmentRows>=this.segmentSize){this.writePath=this.path+".segment-"+String(this.records.length+1).padStart(16,"0")+".jsonl";this.segmentRows=0;}
       const jobs=this.pending.splice(0,Math.min(256,this.segmentSize-this.segmentRows));
-      const rows: CrewRecord[]=jobs.map((job,i)=>({atUtc:new Date().toISOString(),version:"0.3.2",sequence:this.records.length+i+1,type:job.type,worldId:job.worldId,data:job.data}));
+      const rows: CrewRecord[]=jobs.map((job,i)=>({atUtc:new Date().toISOString(),version:"0.3.5",sequence:this.records.length+i+1,type:job.type,worldId:job.worldId,data:job.data}));
       try{
         const file=await open(this.writePath,"a");
         try{await file.writeFile(rows.map(row=>JSON.stringify(row)+"\n").join(""),"utf8");await file.sync();}finally{await file.close();}

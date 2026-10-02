@@ -9,7 +9,7 @@ import java.util.UUID;
 /** Host-facing factory. No hidden legacy body and no automatic takeover of existing players. */
 public final class NumenBackendProvider implements BackendProvider {
     public String id(){return "numen";}
-    public String version(){return "947f0064-hearthcrew-0.3.2";}
+    public String version(){return "947f0064-hearthcrew-0.3.5";}
     public java.util.Set<io.github.yufeiyufei888.hearthcrew.entity.BodyOrder.Kind> capabilities(){return OrderAdapter.CAPABILITIES;}
     public void initialize(){BackendRuntime.initialize();}
     public void configure(MinecraftServer server,Protection protection){BackendProtection.configure(server,protection::positions);}

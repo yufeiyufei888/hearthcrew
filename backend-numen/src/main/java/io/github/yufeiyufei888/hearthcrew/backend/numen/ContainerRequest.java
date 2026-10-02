@@ -26,7 +26,7 @@ public final class ContainerRequest extends TaskRecord {
     static void register(){TaskFactory.register(ContainerRequest.class,Transfer::new);}
     private static final class Transfer implements Task {
         final NumenPlayer body;final ContainerRequest r;final BlockPos origin;
-        PlayerNav nav;TaskResult outcome;int arrivedTicks;
+        FacilityApproach approach;TaskResult outcome;
         Transfer(NumenPlayer body,ContainerRequest request){this.body=body;r=request;origin=body.blockPosition().immutable();}
         public TaskState tick(NumenPlayer ignored) {
             if(outcome!=null)return outcome.success()?TaskState.SUCCESS:TaskState.FAILED;
@@ -37,13 +37,12 @@ public final class ContainerRequest extends TaskRecord {
             var denied=FacilityAccess.denial(body.serverLevel(),p);if(!denied.isEmpty())return fail(denied);
             if(!FurnaceWork.get(body.server).permits(body,p))return fail("WORKSTATION_RESERVED_BY_TEAMMATE");
             if(!FacilityAccess.usableNow(body,p)) {
-                if(nav==null)nav=PlayerNav.to(body,()->GoalCompiler.interact(p),1.0,()->FacilityAccess.usableNow(body,p));
-                var status=nav.tick();
-                if(status==PlayerNav.Status.FAILED)return fail("FACILITY_PATH_UNRESOLVED");
-                if(status==PlayerNav.Status.ARRIVED&&++arrivedTicks>20)return fail("FACILITY_STANCE_NOT_USABLE");
+                if(approach==null)approach=new FacilityApproach(p);
+                var status=approach.tick(body);
+                if(status==TaskState.FAILED)return fail("FACILITY_PATH_UNRESOLVED:"+approach.result(status).message());
                 return TaskState.RUNNING;
             }
-            if(nav!=null){nav.stop();nav=null;}
+            if(approach!=null){approach.stop(body,StopReason.REPLACED);approach=null;}
             body.closeContainer();
             try {
                 com.dwinovo.numen.core.act.Interaction.useBlock(body,new net.minecraft.world.phys.BlockHitResult(
@@ -77,7 +76,7 @@ public final class ContainerRequest extends TaskRecord {
         }
         int contents(AbstractContainerMenu menu){return menu.slots.stream().filter(s->s.container!=body.getInventory()&&s.getItem().is(r.item)).mapToInt(s->s.getItem().getCount()).sum();}
         TaskState fail(String reason){outcome=TaskResult.fail(reason);return TaskState.FAILED;}
-        public void stop(NumenPlayer ignored,StopReason reason){if(nav!=null){nav.stop();nav=null;}body.closeContainer();}
+        public void stop(NumenPlayer ignored,StopReason reason){if(approach!=null){approach.stop(body,reason);approach=null;}body.closeContainer();}
         public TaskResult result(TaskState state){return outcome==null?TaskResult.cancelled("Container transfer not executed"):outcome;}
         public String name(){return "APPROACHING_OR_USING_CONTAINER";}
     }

@@ -69,6 +69,20 @@ public final class NumenBackend implements CompanionBackend {
         if(player==null)return null;var b=OWNED.get(player.getUUID());if(b==null||b.body!=player)return null;b.requireThread();return b.searchBudget;
     }
     public static void selectMiningCandidates(NumenPlayer player,java.util.List<BlockPos> candidates){var b=OWNED.get(player.getUUID());if(b!=null&&b.body==player&&!b.survival.active())b.navigation.candidates(player,candidates);}
+    /** The bounded preparation scan is authoritative even when the shared index has no hits.
+     * Only previously granted, live-checked cells supplement the index; this grants no scope. */
+    public static java.util.List<BlockPos> verifiedMiningCandidates(NumenPlayer player) {
+        var b=OWNED.get(player.getUUID());
+        if(b==null||b.body!=player||b.task==null||b.paused||b.survival.active()||b.allowance==null)return java.util.List.of();
+        b.requireThread();
+        return b.allowance.orderedTargetPositions().stream()
+            .filter(p->miningCandidateAllowed(player,p)&&b.navigation.eligible(player,p))
+            .filter(p->b.allowance.primary.contains(player.level().getBlockState(p).getBlock()))
+            .limit(64).toList();
+    }
+    static void acquisitionFailed(NumenPlayer player,String reason){
+        var b=OWNED.get(player.getUUID());if(b!=null&&b.body==player)b.navigation.failed(player,reason,verifiedMiningCandidates(player));
+    }
     public static void navigationTarget(NumenPlayer player,BlockPos target){var b=OWNED.get(player.getUUID());if(b!=null&&b.body==player&&!b.survival.active())b.navigation.target(player,target);}
     public static void navigationFailed(NumenPlayer player,String reason){var b=OWNED.get(player.getUUID());if(b!=null&&b.body==player&&!b.survival.active())b.navigation.failed(player,(reason.toLowerCase(java.util.Locale.ROOT).contains("budget")?"SEARCH_BUDGET_EXHAUSTED":b.searchBudget.outcome())+": "+reason);}
     static boolean mayUseFacility(net.minecraft.world.entity.player.Player player,BlockPos position) {
@@ -137,6 +151,10 @@ public final class NumenBackend implements CompanionBackend {
         var b=OWNED.get(player.getUUID());if(b==null)return true;b.requireThread();
         return b.body==player&&b.allowance!=null&&b.allowance.inside(p)&&b.body.level().hasChunkAt(p)&&!BackendProtection.isProtected(b.body.serverLevel(),p)
             &&b.allowance.candidateAllowed(p)&&!b.journal.structureAt(player.level().dimension(),p)&&b.body.level().getBlockEntity(p)==null;
+    }
+    static boolean preparationCandidateAllowed(NumenPlayer player,BlockPos p){
+        var backend=OWNED.get(player.getUUID());
+        return backend==null||backend.navigation.eligible(player,p);
     }
     static boolean beforeBreak(net.minecraft.world.entity.Entity player,BlockPos p) {var b=OWNED.get(player.getUUID());return b!=null&&b.body==player&&!b.paused&&!b.survival.active()&&b.task!=null&&b.allowance!=null&&b.allowance.beforeBreak(p);}
     static boolean beforePlace(net.minecraft.world.entity.Entity player,BlockPos p) {var b=OWNED.get(player.getUUID());return b!=null&&b.body==player&&!b.paused&&!b.survival.active()&&b.task!=null&&b.allowance!=null&&b.allowance.beforePlace(p);}

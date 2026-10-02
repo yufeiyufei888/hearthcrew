@@ -19,13 +19,13 @@ public final class NearbyObservation {
  private static boolean stone(Block block){return Set.of(Blocks.STONE,Blocks.COBBLESTONE,Blocks.DEEPSLATE,Blocks.COBBLED_DEEPSLATE,Blocks.GRANITE,Blocks.DIORITE,Blocks.ANDESITE,Blocks.TUFF,Blocks.CALCITE).contains(block);}
 
  private static final class Job {
-  final ServerPlayer body;final BlockPos origin;final int radius;final long generation;int cursor,farCursor,visited;long completed,completedTick;boolean done;
+  final ServerPlayer body;final BlockPos origin;final int radius;final long generation;int cursor,farCursor,visited;long completed,completedTick,terrainHash=1;boolean done;String resourceFacts="";
   final Map<String,List<JsonObject>> categories=new LinkedHashMap<>();final Set<Long> empty=new HashSet<>(),water=new HashSet<>();final List<BlockPos> solids=new ArrayList<>(),ground=new ArrayList<>();final List<JsonObject> distant=new ArrayList<>();
   Job(ServerPlayer p,int radius){body=p;origin=p.blockPosition();this.radius=radius;generation=generation(p);}
   void step(){if(done)return;var positions=ordered(radius);int total=positions.size();
    while(cursor<total){if(!ScanBudget.claim(body.server,1))return;var pos=origin.offset(positions.get(cursor++));
     if(pos.distSqr(origin)>radius*radius||!body.level().hasChunkAt(pos)||body.level().isOutsideBuildHeight(pos))continue;
-    var state=body.level().getBlockState(pos);visited++;if(state.isAir()){empty.add(pos.asLong());continue;}
+    var state=body.level().getBlockState(pos);terrainHash=31*(31*terrainHash+pos.hashCode())+Block.getId(state);visited++;if(state.isAir()){empty.add(pos.asLong());continue;}
     if(state.isFaceSturdy(body.level(),pos,net.minecraft.core.Direction.UP)&&state.getFluidState().isEmpty()&&Math.floorMod(pos.getX(),2)==0&&Math.floorMod(pos.getZ(),2)==0)solids.add(pos);
     if(state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))water.add(pos.asLong());if(state.getBlock() instanceof LiquidBlock)continue;
     String id=BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();String group=state.is(BlockTags.LOGS)?"wood":id.endsWith("_ore")?"ores":stone(state.getBlock())?"stone":state.getBlock() instanceof CropBlock?"food":state.hasBlockEntity()||state.getBlock() instanceof CraftingTableBlock||state.getBlock() instanceof BedBlock?"facilities":null;
@@ -38,7 +38,10 @@ public final class NearbyObservation {
     if(state.is(BlockTags.LOGS)||state.is(BlockTags.LEAVES)){var value=block(pos,BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());value.addProperty("kind","surface_tree_hint");value.addProperty("requiresNearInspection",true);int sector=Math.floorMod((int)Math.floor((Math.atan2(z-origin.getZ(),x-origin.getX())+Math.PI)/(Math.PI/4)),8);value.addProperty("sector",sector);if(distant.stream().filter(v->v.get("sector").getAsInt()==sector).count()<8)distant.add(value);}
    }
    for(var floor:solids)if(empty.contains(floor.above().asLong())&&empty.contains(floor.above(2).asLong()))ground.add(floor.above());
-   ground.sort(Comparator.comparingDouble(p->p.distSqr(origin)));done=true;completed=++sequence;completedTick=body.level().getGameTime();ExplorationRecord.get(body.server).record(body,origin,visited,distant);
+   ground.sort(Comparator.comparingDouble(p->p.distSqr(origin)));
+   // Stable facts, independent of scan version, time and candidate iteration order.
+   var values=new ArrayList<String>();categories.forEach((k,list)->list.forEach(v->values.add(k+":"+v)));distant.forEach(v->values.add("far:"+v));Collections.sort(values);resourceFacts=String.join("\n",values);
+   done=true;completed=++sequence;completedTick=body.level().getGameTime();ExplorationRecord.get(body.server).record(body,origin,visited,distant);
   }
  }
  public static void tick(net.minecraft.server.MinecraftServer server){
@@ -48,6 +51,9 @@ public final class NearbyObservation {
  }
  public static void clear(){jobs.clear();published.clear();}
  public static long revision(ServerPlayer body){var job=published.get(body.getUUID());return job==null||job.body!=body||job.generation!=generation(body)?0:job.completed;}
+ public static String resourceFacts(ServerPlayer body){var job=published.get(body.getUUID());return job==null||job.body!=body||job.generation!=generation(body)?"":job.resourceFacts;}
+ public static String terrainOrigin(ServerPlayer body){var job=published.get(body.getUUID());return job==null||job.body!=body||job.generation!=generation(body)?"":body.level().dimension().location()+":"+job.origin+":"+job.radius;}
+ public static long terrainFacts(ServerPlayer body){var job=published.get(body.getUUID());return job==null||job.body!=body||job.generation!=generation(body)?0:job.terrainHash;}
  public static List<BlockPos> ground(ServerPlayer body,int radius){var j=published.get(body.getUUID());if(j==null||!j.done||j.body!=body||j.generation!=generation(body))return List.of();return j.ground.stream().filter(p->p.distSqr(body.blockPosition())<=radius*radius).limit(64).toList();}
  /** Start bounded perception when a body becomes available, before the first model query. */
  public static void request(ServerPlayer body,int radius){

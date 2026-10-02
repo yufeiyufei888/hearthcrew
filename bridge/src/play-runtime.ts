@@ -133,6 +133,9 @@ async function main(): Promise<void> {
       const authenticated = readOnly.account?.account != null;
       let fastVerification: Awaited<ReturnType<AppServerClient["verifyFastServiceTier"]>> | undefined;
       if (authenticated) {
+        // A read-only model list cannot prove what thread/start will actually
+        // select. Probe the effective model and effort without running a turn.
+        await connectedApp.createThread("coordinator");
         fastVerification = await connectedApp.verifyFastServiceTier();
         if (!fastVerification.verified) process.stderr.write(`HearthCrew: fast service tier pending; using default (${fastVerification.reason ?? "not verified"}).\n`);
         else process.stderr.write(`HearthCrew: fast service tier verified; Codex echoed ${fastVerification.echoed ?? "unknown"}.\n`);
@@ -149,6 +152,7 @@ async function main(): Promise<void> {
     } catch (error) {
       process.stderr.write(`HearthCrew: Codex unavailable: ${error instanceof Error ? error.message : String(error)}\n`);
       await app.stop(); app = undefined;
+      throw error;
     }
     const token = randomBytes(32).toString("hex");
     mod = new ModBridgeServer({ token, ...executionOptions });
